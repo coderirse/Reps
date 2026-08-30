@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
 class HomeViewModel(
     private val db: RepsDatabase,
     private val sessionRepository: StudySessionRepository,
@@ -38,16 +37,25 @@ class HomeViewModel(
     init {
         // Built-in bank: import once on first launch (and again after clear-data).
         viewModelScope.launch {
-            runCatching { settingsRepository.settings.first().builtinImported }
-                .getOrNull()
-                ?.takeIf { !it }
-                ?.let {
+            val settings = runCatching { settingsRepository.settings.first() }.getOrNull() ?: return@launch
+            when {
+                !settings.builtinImported -> {
                     runCatching {
                         importRepository.importBuiltinBank(ImportRepository.BUILTIN_SUBJECT_NAME)
-                    }.onSuccess {
+                    }.onSuccess { subjectId ->
                         settingsRepository.setBuiltinImported(true)
+                        settingsRepository.setBuiltinSubjectId(subjectId)
                     }.onFailure { /* retry on next launch; flag stays unset */ }
                 }
+                // State self-heal for installs that imported before the id was recorded.
+                settings.builtinSubjectId == -1L -> {
+                    runCatching {
+                        withContext(Dispatchers.IO) {
+                            db.subjectDao().observeAll().first().firstOrNull { it.name == ImportRepository.BUILTIN_SUBJECT_NAME }?.id
+                        }
+                    }.getOrNull()?.let { settingsRepository.setBuiltinSubjectId(it) }
+                }
+            }
         }
     }
 

@@ -115,6 +115,7 @@ fun HomeScreen(
             )
             else -> SubjectList(
                 subjects = currentSubjects,
+                builtinSubjectId = settings.builtinSubjectId,
                 onImportClick = { filePicker.launch(arrayOf("*/*")) },
                 onStartSession = onStartSession,
                 viewModel = viewModel,
@@ -206,6 +207,7 @@ private fun formatLastActive(epochMs: Long): String =
 @Composable
 private fun SubjectList(
     subjects: List<SubjectEntity>,
+    builtinSubjectId: Long,
     onImportClick: () -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel,
@@ -242,6 +244,8 @@ private fun SubjectList(
                     subject = subject,
                     dateText = dateFormat.format(Date(subject.createdAt)),
                     onTap = { sheetSubject = subject },
+                    // Built-in bank is app content: no delete entry.
+                    deletable = subject.id != builtinSubjectId,
                     onDelete = { deleteCandidate = subject },
                 )
             }
@@ -316,6 +320,7 @@ private fun SubjectList(
 private fun SubjectCard(
     subject: SubjectEntity,
     dateText: String,
+    deletable: Boolean,
     onTap: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -336,19 +341,21 @@ private fun SubjectCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Box {
-                IconButton(onClick = { menuOpen = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = null)
-                }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_delete)) },
-                        leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
-                        onClick = {
-                            menuOpen = false
-                            onDelete()
-                        },
-                    )
+            if (deletable) {
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = null)
+                    }
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_delete)) },
+                            leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                            onClick = {
+                                menuOpen = false
+                                onDelete()
+                            },
+                        )
+                    }
                 }
             }
         }

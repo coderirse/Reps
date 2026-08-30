@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +30,8 @@ data class UserSettings(
     val askRestoreSession: Boolean = true,
     /** Built-in bank already imported into Room (re-run after clear-all-data). */
     val builtinImported: Boolean = false,
+    /** Subject id of the built-in bank (-1 = none); the UI hides delete for it. */
+    val builtinSubjectId: Long = -1L,
 ) {
     companion object {
         val DEFAULT = UserSettings()
@@ -42,6 +45,7 @@ class SettingsRepository(private val context: Context) {
         val FONT_SCALE = stringPreferencesKey("font_scale")
         val ASK_RESTORE_SESSION = booleanPreferencesKey("ask_restore_session")
         val BUILTIN_IMPORTED = booleanPreferencesKey("builtin_imported")
+        val BUILTIN_SUBJECT_ID = longPreferencesKey("builtin_subject_id")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
@@ -54,6 +58,7 @@ class SettingsRepository(private val context: Context) {
                 ?: FontScale.STANDARD,
             askRestoreSession = prefs[Keys.ASK_RESTORE_SESSION] ?: true,
             builtinImported = prefs[Keys.BUILTIN_IMPORTED] ?: false,
+            builtinSubjectId = prefs[Keys.BUILTIN_SUBJECT_ID] ?: -1L,
         )
     }
 
@@ -71,5 +76,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setBuiltinImported(imported: Boolean) {
         context.dataStore.edit { it[Keys.BUILTIN_IMPORTED] = imported }
+    }
+
+    suspend fun setBuiltinSubjectId(subjectId: Long) {
+        context.dataStore.edit { it[Keys.BUILTIN_SUBJECT_ID] = subjectId }
     }
 }

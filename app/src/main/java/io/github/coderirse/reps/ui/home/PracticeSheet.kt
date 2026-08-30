@@ -75,7 +75,9 @@ fun PracticeSheet(
     onStart: (PracticeStartRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var step by rememberSaveable { mutableStateOf<SheetStep>(SheetStep.SelectType) }
+    // Sheet state is ephemeral: SheetStep's anonymous objects are not
+    // Bundle-saveable, so this must be remember(), not rememberSaveable().
+    var step by remember { mutableStateOf<SheetStep>(SheetStep.SelectType) }
     var shuffleForCategory by rememberSaveable { mutableStateOf(false) }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
