@@ -25,7 +25,7 @@ id,content,type,option_a,option_b,option_c,option_d,option_e,correct_answer,expl
 ## 开发进度
 
 - [x] Phase 0 — 调研、产品/开发文档
-- [ ] Phase 1 — 骨架（数据库、导航、空状态）
+- [x] Phase 1 — 骨架（数据库、导航、空状态）
 - [ ] Phase 2 — 题库导入与刷题闭环
 - [ ] Phase 3 — 会话恢复与错题闭环
 - [ ] Phase 4 — 打磨与发布

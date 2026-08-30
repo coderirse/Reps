@@ -13,8 +13,8 @@
 | AGP | 9.2.1（compileSdk 36.1 新语法 `release(36){minorApiLevel=1}`） |
 | Kotlin | 2.2.10 + Compose Compiler Gradle 插件 |
 | Compose BOM | 2026.02.01，Material 3 |
-| minSdk / target | 骨架现值 34 / 36；**已决策（2026-08-30）下调 minSdk 至 26**，`app/build.gradle.kts` 的修改随 Phase 1 一起提交 |
-| 包名 | 骨架现值 `com.example.reps`；**已决策（2026-08-30）改为 `io.github.coderirse.reps`**（仓库 `coderirse/Reps`），与 minSdk 一起在 Phase 1 落地 |
+| minSdk / target / compile | **2026-08-30 Phase 1 落地**：minSdk 26、targetSdk 36；compileSdk 升至 37（仅编译期，因 navigation 2.10.x / lifecycle 2.11.x compose 要求 API 37，AGP 官方同建议） |
+| 包名 | **2026-08-30 Phase 1 落地**：`io.github.coderirse.reps`（namespace、applicationId、源码包同步迁移） |
 | 已有 | 仅 Compose 基础三件套 + lifecycle-runtime，**无 Room / Navigation / DataStore** |
 
 ## 2. 新增依赖（写入 `libs.versions.toml`）

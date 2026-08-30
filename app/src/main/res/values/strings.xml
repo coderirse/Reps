@@ -1,3 +1,55 @@
 <resources>
     <string name="app_name">Reps</string>
+
+    <!-- Bottom navigation -->
+    <string name="tab_library">题库</string>
+    <string name="tab_wrong_book">错题本</string>
+    <string name="tab_favorites">收藏</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Home -->
+    <string name="home_empty_title">还没有题库</string>
+    <string name="home_empty_description">把老师发的题库 CSV 导进来，随时随地刷题背题</string>
+    <string name="home_import_button">导入题库</string>
+    <string name="home_import_coming_soon">题库导入将在下个阶段开放</string>
+
+    <!-- Wrong book -->
+    <string name="wrong_book_empty_title">错题本还是空的</string>
+    <string name="wrong_book_empty_description">答错的题会自动收进这里，连对 2 次自动掌握</string>
+
+    <!-- Favorites -->
+    <string name="favorites_empty_title">还没有收藏</string>
+    <string name="favorites_empty_description">刷题时点亮收藏，重点题集中练习</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_section_appearance">外观</string>
+    <string name="settings_theme_mode">深色模式</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="settings_font_size">字体大小</string>
+    <string name="font_small">小</string>
+    <string name="font_standard">标准</string>
+    <string name="font_large">大</string>
+    <string name="font_extra_large">特大</string>
+    <string name="settings_section_data">数据</string>
+    <string name="settings_clear_data">清除所有数据</string>
+    <string name="settings_clear_data_description">删除全部题库、刷题进度、错题与收藏，操作不可恢复</string>
+    <string name="settings_clear_done">已清除全部数据</string>
+    <string name="settings_section_about">关于</string>
+    <string name="dialog_clear_title">确认清除所有数据？</string>
+    <string name="dialog_clear_text">将删除全部题库、刷题进度、错题与收藏，且无法恢复。</string>
+    <string name="dialog_clear_confirm">清除</string>
+    <string name="dialog_cancel">取消</string>
+
+    <!-- About -->
+    <string name="about_title">关于</string>
+    <string name="about_slogan">One more rep.</string>
+    <string name="about_version">版本 %1$s</string>
+    <string name="about_license">开源协议</string>
+    <string name="about_license_desc">MIT License</string>
+    <string name="about_repo">GitHub 仓库</string>
+    <string name="about_repo_url">https://github.com/coderirse/Reps</string>
+    <string name="about_copyright">© 2026 coderirse · MIT License</string>
 </resources>
