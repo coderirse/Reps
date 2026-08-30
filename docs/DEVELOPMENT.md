@@ -27,7 +27,7 @@
 | 偏好设置 | `androidx.datastore:datastore-preferences` | 夜间模式/字体/会话提醒开关 |
 | ViewModel Compose | `androidx.lifecycle:lifecycle-viewmodel-compose` / `lifecycle-runtime-compose` | 与骨架 lifecycle 2.11.0 同源 |
 | 进程级生命周期 | `androidx.lifecycle:lifecycle-process` | 后台兜底保存 |
-| CSV 解析 | `com.github.doyaaaaaken:kotlin-csv-jvm` | RFC 4180 引号/内嵌换行，纯 JVM，体积小 |
+| CSV 解析 | `com.github.doyaaaaaken:kotlin-csv-jvm` | RFC 4180 引号/内嵌换行，纯 JVM，体积小（Phase 2 起引入） |
 | 协程 | `org.jetbrains.kotlinx:kotlinx-coroutines-android` | 显式引入便于管理 |
 | 测试 | `androidx.room:room-testing`、`kotlinx-coroutines-test` | 其余复用骨架 |
 
@@ -106,7 +106,7 @@ data class QuestionEntity(
 data class StudySessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val subjectId: Long,
-    val practiceType: String,        // SEQUENTIAL / RANDOM / CATEGORY / WRONG_BOOK / FAVORITE
+    val practiceType: String,        // SEQUENTIAL / RANDOM / CATEGORY / CUSTOM / WRONG_BOOK / FAVORITE
     val filterValue: String?,        // 专项练习的章节或分类值
     val reciteMode: String,          // MODE_A_BROWSE / MODE_B_TEST
     val questionIds: String,         // 快照 JSON 数组：会话题序（已按方式排序/洗牌）
@@ -114,6 +114,7 @@ data class StudySessionEntity(
     val selectedAnswer: String?,     // 当前题已选答案（模式B）
     val answerRevealed: Boolean,
     val randomSeed: Long,            // 洗牌种子（持久化，恢复后题序一致）
+    val deadlineAt: Long,            // 倒计时截止 epoch ms；0 = 不限时（CUSTOM 定时用）
     val startedAt: Long,
     val lastActiveAt: Long,
     val accumulatedMs: Long,         // 累计刷题时长（5s 粒度近似）
@@ -167,6 +168,19 @@ data class NoteEntity(
 
 - `exportSchema = true`，schema JSON 提交至 `app/schemas/`（Room 配置 `room.schemaLocation`）。
 - v1.0 发布前允许破坏性变更（`fallbackToDestructiveMigration` 仅 debug）；发布后一律写 `Migration` 并配套 `MigrationTestHelper` 测试。
+- v2（2026-08-30，Phase 2）：`study_sessions` 新增 `deadlineAt`（自定义练习的倒计时截止），Migration `ALTER TABLE ... ADD COLUMN deadlineAt INTEGER NOT NULL DEFAULT 0`。
+
+### 4.4 自定义组卷（CUSTOM 会话创建）
+
+```
+输入: subjectId, quotas{single,multi,judge}, order(顺序/随机), deadlineMinutes, reciteMode
+校验: 各配额 ≤ 该题型实有数量（配置面板步进器上限即实有数）
+抽题: 顺序 → 各题型按 orderIndex 升序截取前 N；随机 → 各题型按种子随机采样前 N
+合并: 顺序 → 按 orderIndex 全局升序；随机 → 种子 Fisher–Yates 洗牌
+落库: questionIds 快照 + randomSeed + deadlineAt = now + minutes*60_000（0=不限时）
+```
+
+定时语义：`deadlineAt` 持久化为墙钟时间戳；恢复会话时剩余时间 = deadline - now，归零即自动封卷（未答视为未做）→ 结果页（已答数/正确数/正确率/用时 + 本次错题回看）。结果页数据全部可由 session_answers 聚合，无新表。
 
 ## 5. 关键流程
 
@@ -307,7 +321,7 @@ StudyScreen (Scaffold, 全屏)
 | 阶段 | 工程任务 |
 |---|---|
 | P1 骨架 | 依赖入 toml；Room 建库（全部实体 DAO）；NavHost + 4 Tab；首页空状态；主题三态与字体缩放框架 |
-| P2 刷题闭环 | EncodingDetector + CsvParser + Validator（含单元测试）；导入预览页；题库列表；StudyScreen 全组件；快照/洗牌；模式 A/B + 判分 |
+| P2 刷题闭环 | EncodingDetector + CsvParser + Validator（含单元测试）；导入预览页；题库列表；底部弹窗选练习方式；StudyScreen 全组件；快照/洗牌；模式 A/B + 判分（含多选）；自定义组卷 + 倒计时 + 结果页；会话创建与切题落库 |
 | P3 状态闭环 | 三级保存 + 脏标记；恢复弹窗 + 过期清理；session_answers 落库与答题卡聚合；错题联动 + 错题本页；收藏 + 收藏页 |
 | P4 打磨 | 深色/字体设置页；清数据；关于页；空态与错误文案；R8 与发布检查 |
 
