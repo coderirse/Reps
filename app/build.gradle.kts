@@ -30,8 +30,8 @@ android {
         applicationId = "io.github.coderirse.reps"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.1"
+        versionCode = 5
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -50,7 +50,7 @@ android {
     buildTypes {
         release {
             optimization {
-                enable = false
+                enable = true
             }
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
@@ -67,6 +67,32 @@ android {
 room {
     schemaDirectory("$projectDir/schemas")
 }
+
+// Privacy invariant (docs/PRODUCT.md section 8): Reps never declares INTERNET.
+// Checked against the merged manifest so library manifests are covered too.
+val verifyNoInternetPermission = tasks.register("verifyNoInternetPermission") {
+    group = "verification"
+    description = "Fails if any merged manifest declares the INTERNET permission."
+    dependsOn("processReleaseMainManifest")
+    // Capture as plain File (config-cache safe); merged manifest dir name varies by AGP.
+    val intermediatesDir = layout.buildDirectory.dir("intermediates").get().asFile
+    outputs.upToDateWhen { false }
+    doLast {
+        val manifests = intermediatesDir.walkTopDown()
+            .filter { it.name == "AndroidManifest.xml" && it.path.contains("merged_manifest") }
+            .toList()
+        if (manifests.isEmpty()) {
+            throw GradleException("未找到 merged manifest，请先执行一次构建")
+        }
+        val offenders = manifests.filter { it.readText().contains("android.permission.INTERNET") }
+        if (offenders.isNotEmpty()) {
+            throw GradleException("检测到 INTERNET 权限，Reps 必须保持完全离线: $offenders")
+        }
+        println("隐私检查通过：${manifests.size} 个 merged manifest 均未声明 INTERNET 权限")
+    }
+}
+
+tasks.named("check") { dependsOn(verifyNoInternetPermission) }
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
