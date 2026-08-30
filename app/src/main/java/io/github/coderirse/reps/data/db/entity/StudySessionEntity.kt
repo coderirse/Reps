@@ -9,6 +9,7 @@ object PracticeType {
     const val SEQUENTIAL = "sequential"
     const val RANDOM = "random"
     const val CATEGORY = "category"
+    const val CUSTOM = "custom"
     const val WRONG_BOOK = "wrong_book"
     const val FAVORITE = "favorite"
 }
@@ -58,6 +59,12 @@ data class StudySessionEntity(
     val selectedAnswer: String?,
     val answerRevealed: Boolean,
     val randomSeed: Long,
+    /**
+     * Countdown deadline (epoch ms) for timed CUSTOM sessions; 0 = untimed.
+     * Persisted as wall clock so resuming a session continues the remaining
+     * time instead of resetting it.
+     */
+    val deadlineAt: Long = 0,
     val startedAt: Long,
     val lastActiveAt: Long,
     val accumulatedMs: Long,

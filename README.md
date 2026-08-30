@@ -26,7 +26,7 @@ id,content,type,option_a,option_b,option_c,option_d,option_e,correct_answer,expl
 
 - [x] Phase 0 — 调研、产品/开发文档
 - [x] Phase 1 — 骨架（数据库、导航、空状态）
-- [ ] Phase 2 — 题库导入与刷题闭环
+- [x] Phase 2 — 题库导入与刷题闭环（含多选题、自定义组卷与定时）
 - [ ] Phase 3 — 会话恢复与错题闭环
 - [ ] Phase 4 — 打磨与发布
 

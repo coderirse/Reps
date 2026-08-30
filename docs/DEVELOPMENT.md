@@ -27,7 +27,7 @@
 | 偏好设置 | `androidx.datastore:datastore-preferences` | 夜间模式/字体/会话提醒开关 |
 | ViewModel Compose | `androidx.lifecycle:lifecycle-viewmodel-compose` / `lifecycle-runtime-compose` | 与骨架 lifecycle 2.11.0 同源 |
 | 进程级生命周期 | `androidx.lifecycle:lifecycle-process` | 后台兜底保存 |
-| CSV 解析 | `com.github.doyaaaaaken:kotlin-csv-jvm` | RFC 4180 引号/内嵌换行，纯 JVM，体积小（Phase 2 起引入） |
+| CSV 解析 | 内置 RFC 4180 tokenizer（`data/csv/CsvQuestionParser.parseCsvRows`） | **2026-08-30 由 kotlin-csv 改为自研**：规格要求参差行列出「行号+原因」级错误，kotlin-csv 遇列数不一致会整文件抛异常且不带行号；自研 tokenizer 容忍参差行（缺尾部可选列仍可导入），配 `CsvTokenizerTest` |
 | 协程 | `org.jetbrains.kotlinx:kotlinx-coroutines-android` | 显式引入便于管理 |
 | 测试 | `androidx.room:room-testing`、`kotlinx-coroutines-test` | 其余复用骨架 |
 

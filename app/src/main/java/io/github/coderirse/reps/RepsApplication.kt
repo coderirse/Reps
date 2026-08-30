@@ -3,6 +3,8 @@ package io.github.coderirse.reps
 import android.app.Application
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.prefs.SettingsRepository
+import io.github.coderirse.reps.data.repo.ImportRepository
+import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,4 +24,8 @@ class RepsApplication : Application() {
     val database: RepsDatabase by lazy { RepsDatabase.build(this) }
 
     val settingsRepository: SettingsRepository by lazy { SettingsRepository(this) }
+
+    val importRepository: ImportRepository by lazy { ImportRepository(this, database) }
+
+    val studySessionRepository: StudySessionRepository by lazy { StudySessionRepository(database) }
 }

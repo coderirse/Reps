@@ -30,6 +30,16 @@ data object Settings
 @Serializable
 data object About
 
+/** Phase 2: import flow and study flow. URI is URL-encoded for the route. */
+@Serializable
+data class ImportPreview(val encodedUri: String)
+
+@Serializable
+data class Study(val sessionId: Long)
+
+@Serializable
+data class SessionResult(val sessionId: Long)
+
 data class TopLevelTab(
     val route: Any,
     val labelRes: Int,

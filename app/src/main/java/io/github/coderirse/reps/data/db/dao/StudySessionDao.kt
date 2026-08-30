@@ -21,6 +21,10 @@ interface StudySessionDao {
     @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId AND status = 0 LIMIT 1")
     suspend fun getActiveBySubject(subjectId: Long): StudySessionEntity?
 
+    /** One active session per subject: completing the previous one on entry. */
+    @Query("UPDATE study_sessions SET status = 1 WHERE subjectId = :subjectId AND status = 0")
+    suspend fun completeActiveForSubject(subjectId: Long)
+
     @Query("UPDATE study_sessions SET status = 1 WHERE id = :id")
     suspend fun markCompleted(id: Long)
 

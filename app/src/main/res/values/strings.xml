@@ -12,6 +12,7 @@
     <string name="home_empty_description">把老师发的题库 CSV 导进来，随时随地刷题背题</string>
     <string name="home_import_button">导入题库</string>
     <string name="home_import_coming_soon">题库导入将在下个阶段开放</string>
+    <string name="subject_meta">%1$d 题 · 导入于 %2$s</string>
 
     <!-- Wrong book -->
     <string name="wrong_book_empty_title">错题本还是空的</string>
@@ -20,6 +21,90 @@
     <!-- Favorites -->
     <string name="favorites_empty_title">还没有收藏</string>
     <string name="favorites_empty_description">刷题时点亮收藏，重点题集中练习</string>
+
+    <string name="action_delete">删除</string>
+    <string name="dialog_delete_subject_title">删除题库？</string>
+    <string name="dialog_delete_subject_text">将删除「%1$s」及其全部题目、刷题记录、错题与收藏，且无法恢复。</string>
+    <string name="dialog_delete_confirm">删除</string>
+
+    <!-- Practice picker sheet -->
+    <string name="practice_sequential">顺序练习</string>
+    <string name="practice_random">随机练习</string>
+    <string name="practice_category">专项练习</string>
+    <string name="practice_custom">自定义练习</string>
+    <string name="practice_wrong_book">错题重练</string>
+    <string name="practice_favorite">收藏练习</string>
+    <string name="practice_phase3_hint">下个阶段开放</string>
+    <string name="practice_pick_filter">选择章节或分类</string>
+    <string name="filter_chapters">章节</string>
+    <string name="filter_categories">分类</string>
+    <string name="filter_empty">该题库没有章节或分类信息</string>
+    <string name="question_order">题序</string>
+    <string name="order_sequential">顺序</string>
+    <string name="order_random">随机</string>
+    <string name="recite_mode">背题模式</string>
+    <string name="mode_a_label">模式A · 浏览</string>
+    <string name="mode_b_label">模式B · 检验</string>
+    <string name="action_start">开始练习</string>
+    <string name="action_back">返回</string>
+    <string name="quota_single">单选题</string>
+    <string name="quota_multi">多选题</string>
+    <string name="quota_judge">判断题</string>
+    <string name="quota_total">共 %1$d 题</string>
+    <string name="quota_available">可选 %1$d</string>
+    <string name="timer_minutes_hint">倒计时（分钟）</string>
+    <string name="timer_minutes_value">%1$d 分钟</string>
+    <string name="timer_off">不限时</string>
+    <string name="timer_forces_mode_b">开启倒计时时使用模式 B（检验背题）</string>
+    <string name="practice_switch_title">切换练习方式？</string>
+    <string name="practice_switch_text">将结束当前练习并开始一轮新的练习。</string>
+
+    <!-- Import -->
+    <string name="import_title">导入题库</string>
+    <string name="import_name_label">题库名称</string>
+    <string name="import_confirm">确认导入</string>
+    <string name="import_parsing">正在解析…</string>
+    <string name="import_writing">正在写入…</string>
+    <string name="import_stats">可导入 %1$d 题 · 共 %2$d 行 · 跳过不支持 %3$d 题</string>
+    <string name="import_errors_title">解析问题（%1$d）</string>
+    <string name="import_success">已导入 %1$d 题</string>
+    <string name="import_file_error">无法读取所选文件</string>
+    <string name="import_preview_empty">预览区（前 50 题）</string>
+
+    <!-- Study -->
+    <string name="study_prev">上一题</string>
+    <string name="study_next">下一题</string>
+    <string name="study_answer_card">答题卡</string>
+    <string name="study_mode_a">模式A</string>
+    <string name="study_mode_b">模式B</string>
+    <string name="study_dark_label">深色</string>
+    <string name="study_answer_label">正确答案：%1$s</string>
+    <string name="study_no_explanation">暂无解析</string>
+    <string name="study_explanation_label">解析</string>
+    <string name="study_confirm_multi">确认答案</string>
+    <string name="study_submit">交卷</string>
+    <string name="study_submit_confirm_title">提前交卷？</string>
+    <string name="study_submit_confirm_text">时间未到，确认提交并查看结果？</string>
+    <string name="type_single">单选</string>
+    <string name="type_multi">多选</string>
+    <string name="type_judge">判断</string>
+    <string name="card_legend_undo">未做</string>
+    <string name="card_legend_correct">对</string>
+    <string name="card_legend_wrong">错</string>
+    <string name="card_legend_browsed">浏览</string>
+    <string name="card_legend_current">当前</string>
+
+    <!-- Result -->
+    <string name="result_title">练习结果</string>
+    <string name="result_answered">已答</string>
+    <string name="result_correct">正确</string>
+    <string name="result_accuracy">正确率</string>
+    <string name="result_duration">用时 %1$s</string>
+    <string name="result_wrong_list">本次错题（%1$d）</string>
+    <string name="result_your_answer">你的答案</string>
+    <string name="result_correct_answer">正确答案</string>
+    <string name="result_done">完成</string>
+    <string name="result_no_wrong">本次没有错题，干得漂亮！</string>
 
     <!-- Settings -->
     <string name="settings_title">设置</string>

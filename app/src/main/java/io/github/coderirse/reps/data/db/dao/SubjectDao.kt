@@ -15,6 +15,9 @@ interface SubjectDao {
     @Query("SELECT * FROM subjects ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<SubjectEntity>>
 
+    @Query("SELECT * FROM subjects WHERE id = :id")
+    suspend fun getById(id: Long): SubjectEntity?
+
     @Query("SELECT COUNT(*) FROM subjects")
     suspend fun count(): Int
 

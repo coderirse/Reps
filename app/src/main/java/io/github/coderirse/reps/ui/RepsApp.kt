@@ -15,18 +15,27 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
+import io.github.coderirse.reps.ui.import.ImportPreviewScreen
 import io.github.coderirse.reps.ui.navigation.About
 import io.github.coderirse.reps.ui.navigation.Favorites
 import io.github.coderirse.reps.ui.navigation.Home
+import io.github.coderirse.reps.ui.navigation.ImportPreview
+import io.github.coderirse.reps.ui.navigation.SessionResult
 import io.github.coderirse.reps.ui.navigation.Settings
+import io.github.coderirse.reps.ui.navigation.Study
 import io.github.coderirse.reps.ui.navigation.TOP_LEVEL_TABS
 import io.github.coderirse.reps.ui.navigation.WrongBook
 import io.github.coderirse.reps.ui.navigation.label
 import io.github.coderirse.reps.ui.settings.AboutScreen
 import io.github.coderirse.reps.ui.settings.SettingsScreen
+import io.github.coderirse.reps.ui.study.ResultScreen
+import io.github.coderirse.reps.ui.study.StudyScreen
 import io.github.coderirse.reps.ui.wrongbook.WrongBookScreen
+import java.net.URLDecoder
+import java.net.URLEncoder
 
 @Composable
 fun RepsApp() {
@@ -70,7 +79,54 @@ fun RepsApp() {
             startDestination = Home,
             modifier = Modifier.padding(innerPadding),
         ) {
-            composable<Home> { HomeScreen() }
+            composable<Home> { entry ->
+                HomeScreen(
+                    snackbarMessage = entry.savedStateHandle.get<String>(IMPORT_MESSAGE_KEY),
+                    onSnackbarShown = { entry.savedStateHandle.remove<String>(IMPORT_MESSAGE_KEY) },
+                    onOpenImportPreview = { uri ->
+                        navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
+                    },
+                    onStartSession = { sessionId -> navController.navigate(Study(sessionId)) },
+                )
+            }
+            composable<ImportPreview> { entry ->
+                val args = entry.toRoute<ImportPreview>()
+                ImportPreviewScreen(
+                    uri = android.net.Uri.parse(URLDecoder.decode(args.encodedUri, "UTF-8")),
+                    onBack = { navController.popBackStack() },
+                    onImported = { _, count ->
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle?.set(IMPORT_MESSAGE_KEY, "已导入 $count 题")
+                        navController.popBackStack()
+                    },
+                )
+            }
+            composable<Study> { entry ->
+                val args = entry.toRoute<Study>()
+                StudyScreen(
+                    sessionId = args.sessionId,
+                    onClose = { navController.popBackStack() },
+                    onSessionFinished = { id ->
+                        navController.navigate(SessionResult(id)) {
+                            // Replace Study with Result on the back stack.
+                            popUpTo(entry.destination.id) { inclusive = true }
+                        }
+                    },
+                    onSessionRestart = { newId ->
+                        navController.navigate(Study(newId)) {
+                            popUpTo(entry.destination.id) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+            composable<SessionResult> { entry ->
+                val args = entry.toRoute<SessionResult>()
+                ResultScreen(
+                    sessionId = args.sessionId,
+                    onDone = { navController.popBackStack() },
+                )
+            }
             composable<WrongBook> { WrongBookScreen() }
             composable<Favorites> { FavoritesScreen() }
             composable<Settings> {
@@ -80,3 +136,5 @@ fun RepsApp() {
         }
     }
 }
+
+private const val IMPORT_MESSAGE_KEY = "import_message"
