@@ -17,7 +17,7 @@ object Grading {
                 if (token.isBlank()) {
                     emptyList()
                 } else {
-                    token.uppercase().filter { it in 'A'..'E' }.map { it.toString() }
+                    token.uppercase().filter { it in 'A'..'F' }.map { it.toString() }
                 }
             }
             .distinct()

@@ -63,13 +63,33 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
     val subjects by viewModel.subjects.collectAsStateWithLifecycle(initialValue = null)
+    val activeSessions by viewModel.activeSessions.collectAsStateWithLifecycle(initialValue = null)
+    val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = io.github.coderirse.reps.data.prefs.UserSettings.DEFAULT)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var restoreDismissed by remember { mutableStateOf(false) }
+    var restartCandidate by remember { mutableStateOf<io.github.coderirse.reps.data.db.entity.StudySessionEntity?>(null) }
+    var restoreMeta by remember { mutableStateOf<RestoreMeta?>(null) }
+
+    LaunchedEffect(Unit) { viewModel.expireOldSessions() }
 
     LaunchedEffect(snackbarMessage) {
         snackbarMessage?.let {
             snackbarHostState.showSnackbar(it)
             onSnackbarShown()
+        }
+    }
+
+    // Restore dialog data for the most recent active session.
+    LaunchedEffect(activeSessions?.firstOrNull()?.id) {
+        activeSessions?.firstOrNull()?.let { session ->
+            restoreMeta = RestoreMeta(
+                subjectName = viewModel.getSubjectName(session.subjectId),
+                position = session.currentIndex + 1,
+                total = session.questionIds.split(',').count { it.isNotBlank() },
+                accumulatedMs = session.accumulatedMs,
+                lastActiveAt = session.lastActiveAt,
+            )
         }
     }
 
@@ -102,8 +122,86 @@ fun HomeScreen(
                 scope = scope,
             )
         }
+
+        // Startup restore dialog (docs/PRODUCT.md section 7.4).
+        val latest = activeSessions?.firstOrNull()
+        if (settings.askRestoreSession && !restoreDismissed && latest != null && restoreMeta != null) {
+            val meta = restoreMeta!!
+            AlertDialog(
+                onDismissRequest = { restoreDismissed = true },
+                title = { Text(stringResource(R.string.restore_title)) },
+                text = {
+                    Text(
+                        stringResource(
+                            R.string.restore_message,
+                            meta.subjectName,
+                            meta.position,
+                            meta.total,
+                            formatDuration(meta.accumulatedMs),
+                            formatLastActive(meta.lastActiveAt),
+                        ),
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { restoreDismissed = true; onStartSession(latest.id) }) {
+                        Text(stringResource(R.string.restore_continue))
+                    }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = {
+                            restoreDismissed = true
+                            restartCandidate = latest
+                        }) { Text(stringResource(R.string.restore_restart)) }
+                        TextButton(onClick = {
+                            restoreDismissed = true
+                            scope.launch { viewModel.setAskRestore(false) }
+                        }) { Text(stringResource(R.string.restore_never_ask)) }
+                    }
+                },
+            )
+        }
+
+        restartCandidate?.let { session ->
+            AlertDialog(
+                onDismissRequest = { restartCandidate = null },
+                title = { Text(stringResource(R.string.restore_restart)) },
+                text = { Text(stringResource(R.string.restore_restart_confirm)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val id = session.id
+                        restartCandidate = null
+                        scope.launch {
+                            viewModel.restartSession(id)
+                            onStartSession(id)
+                        }
+                    }) { Text(stringResource(R.string.dialog_clear_confirm)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { restartCandidate = null }) {
+                        Text(stringResource(R.string.dialog_cancel))
+                    }
+                },
+            )
+        }
     }
 }
+
+private data class RestoreMeta(
+    val subjectName: String,
+    val position: Int,
+    val total: Int,
+    val accumulatedMs: Long,
+    val lastActiveAt: Long,
+)
+
+private fun formatDuration(ms: Long): String {
+    val totalSec = ms / 1000
+    return "%02d:%02d".format(totalSec / 60, totalSec % 60)
+}
+
+private fun formatLastActive(epochMs: Long): String =
+    java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(Date(epochMs))
 
 @Composable
 private fun SubjectList(
@@ -119,6 +217,7 @@ private fun SubjectList(
     var chapterCounts by remember { mutableStateOf(emptyList<Pair<String, Int>>()) }
     var categoryCounts by remember { mutableStateOf(emptyList<Pair<String, Int>>()) }
     var countsByType by remember { mutableStateOf(emptyMap<String, Int>()) }
+    var resumeSession by remember { mutableStateOf<io.github.coderirse.reps.data.db.entity.StudySessionEntity?>(null) }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
 
     // Load sheet context data whenever a subject is tapped.
@@ -127,6 +226,7 @@ private fun SubjectList(
             chapterCounts = viewModel.chapterCounts(subject.id).map { it.value to it.count }
             categoryCounts = viewModel.categoryCounts(subject.id).map { it.value to it.count }
             countsByType = viewModel.countsByType(subject.id)
+            resumeSession = viewModel.getActiveSession(subject.id)
         }
     }
 
@@ -163,6 +263,11 @@ private fun SubjectList(
             chapterCounts = chapterCounts,
             categoryCounts = categoryCounts,
             countsByType = countsByType,
+            resumeSession = resumeSession,
+            onResume = { sessionId ->
+                sheetSubject = null
+                onStartSession(sessionId)
+            },
             onStart = { request ->
                 val subjectId = subject.id
                 sheetSubject = null

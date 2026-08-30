@@ -32,12 +32,15 @@ class SettingsViewModel(
     }
 
     /**
-     * Wipes every table. Runs on IO because [RepsDatabase.clearAllTables] must
-     * not be called from the main thread; [onDone] fires on the main thread.
+     * Wipes every table and resets the built-in bank flag so the bundled
+     * bank re-imports on next launch. Runs on IO because
+     * [RepsDatabase.clearAllTables] must not be called from the main thread;
+     * [onDone] fires on the main thread.
      */
     fun clearAllData(onDone: () -> Unit) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { database.clearAllTables() }
+            settingsRepository.setBuiltinImported(false)
             onDone()
         }
     }

@@ -13,7 +13,7 @@ import io.github.coderirse.reps.data.db.entity.SubjectEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Reads a CSV via SAF, detects encoding, parses/validates, imports atomically. */
+/** Reads a CSV via SAF (or assets for the built-in bank), imports atomically. */
 class ImportRepository(
     private val context: Context,
     private val db: RepsDatabase,
@@ -24,12 +24,25 @@ class ImportRepository(
     suspend fun readAndParse(uri: Uri): CsvParseResult = withContext(Dispatchers.IO) {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: return@withContext CsvParseResult(headerError = "无法读取所选文件")
+        parseBytes(bytes)
+    }
+
+    private fun parseBytes(bytes: ByteArray): CsvParseResult {
         val charset = EncodingDetector.detect(bytes, EncodingDetector::icuCrossCheck)
-            ?: return@withContext CsvParseResult(
-                headerError = "无法识别文件编码，请将文件另存为 UTF-8 后重试",
-            )
-        val text = String(bytes, charset)
-        parser.parse(text)
+            ?: return CsvParseResult(headerError = "无法识别文件编码，请将文件另存为 UTF-8 后重试")
+        return parser.parse(String(bytes, charset))
+    }
+
+    /**
+     * Built-in bank: parses the CSV shipped in assets and imports it with
+     * image references mapped to asset paths. Idempotence is guarded by the
+     * builtinImported flag in DataStore, not here.
+     */
+    suspend fun importBuiltinBank(name: String): Long = withContext(Dispatchers.IO) {
+        val bytes = context.assets.open(BUILTIN_CSV_ASSET).use { it.readBytes() }
+        val result = parseBytes(bytes)
+        check(result.canImport) { "Built-in bank CSV invalid: ${result.headerError}" }
+        import(name = name, result = result, imageBasePath = BUILTIN_IMAGE_DIR)
     }
 
     /** Suggests a subject name from the file's display name (minus extension). */
@@ -49,8 +62,16 @@ class ImportRepository(
         }.getOrNull() ?: "导入的题库"
     }
 
-    /** All-or-nothing: subject + every question in one transaction. */
-    suspend fun import(name: String, result: CsvParseResult): Long = withContext(Dispatchers.IO) {
+    /**
+     * All-or-nothing: subject + every question in one transaction.
+     * [imageBasePath] turns each row's raw image reference into a resolvable
+     * asset path (built-in bank only; user imports have no image storage yet).
+     */
+    suspend fun import(
+        name: String,
+        result: CsvParseResult,
+        imageBasePath: String? = null,
+    ): Long = withContext(Dispatchers.IO) {
         check(result.canImport) { "Nothing to import" }
         val questions = result.questions
         db.withTransaction {
@@ -69,10 +90,14 @@ class ImportRepository(
                         optionC = q.optionC,
                         optionD = q.optionD,
                         optionE = q.optionE,
+                        optionF = q.optionF,
                         correctAnswer = q.correctAnswer,
                         explanation = q.explanation,
                         category = q.category,
                         chapter = q.chapter,
+                        imageFile = q.image
+                            ?.takeIf { imageBasePath != null }
+                            ?.let { "$imageBasePath/$it.jpeg" },
                     )
                 },
             )
@@ -80,7 +105,10 @@ class ImportRepository(
         }
     }
 
-    private companion object {
-        const val PREVIEW_COUNT = 50
+    companion object {
+        private const val PREVIEW_COUNT = 50
+        const val BUILTIN_CSV_ASSET = "builtin_bank/questions.csv"
+        const val BUILTIN_IMAGE_DIR = "builtin_bank/images"
+        const val BUILTIN_SUBJECT_NAME = "金工实习"
     }
 }

@@ -13,10 +13,13 @@ data class ParsedQuestion(
     val optionC: String?,
     val optionD: String?,
     val optionE: String?,
+    val optionF: String?,
     val correctAnswer: String,
     val explanation: String?,
     val category: String?,
     val chapter: String?,
+    /** Raw image reference from the CSV; caller decides the storage mapping. */
+    val image: String?,
 )
 
 data class RowError(val lineNo: Int, val reason: String)
@@ -83,9 +86,9 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
 
             val options = listOf(
                 cell(COL_OPTION_A), cell(COL_OPTION_B), cell(COL_OPTION_C),
-                cell(COL_OPTION_D), cell(COL_OPTION_E),
+                cell(COL_OPTION_D), cell(COL_OPTION_E), cell(COL_OPTION_F),
             )
-            fun optionOf(letter: Char): String? = options[letter - 'A']
+            fun optionOf(letter: Char): String? = options.getOrNull(letter - 'A')
 
             val rawAnswer = cell(COL_CORRECT_ANSWER)
             val correctAnswer = when (type) {
@@ -99,7 +102,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                 }
                 QuestionType.SINGLE -> {
                     val letter = rawAnswer?.uppercase()?.singleOrNull()
-                    if (letter == null || letter !in 'A'..'E') {
+                    if (letter == null || letter !in 'A'..'F') {
                         fail("第 $lineNo 行：单选答案必须是 A-E（收到「$rawAnswer」）")
                         return@forEachIndexed
                     }
@@ -110,7 +113,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     letter.toString()
                 }
                 QuestionType.MULTI -> {
-                    val letters = rawAnswer?.uppercase()?.filter { it in 'A'..'E' }?.map { it.toString() }
+                    val letters = rawAnswer?.uppercase()?.filter { it in 'A'..'F' }?.map { it.toString() }
                     val distinct = letters?.distinct().orEmpty()
                     if (distinct.size < 2) {
                         fail("第 $lineNo 行：多选答案至少需要两个不同选项（收到「$rawAnswer」）")
@@ -145,10 +148,12 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                 optionC = options[2],
                 optionD = options[3],
                 optionE = options[4],
+                optionF = options.getOrNull(5),
                 correctAnswer = correctAnswer,
                 explanation = cell(COL_EXPLANATION),
                 category = cell(COL_CATEGORY),
                 chapter = cell(COL_CHAPTER),
+                image = cell(COL_IMAGE),
             )
         }
 
@@ -207,10 +212,12 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
         const val COL_OPTION_C = "option_c"
         const val COL_OPTION_D = "option_d"
         const val COL_OPTION_E = "option_e"
+        const val COL_OPTION_F = "option_f"
         const val COL_CORRECT_ANSWER = "correct_answer"
         const val COL_EXPLANATION = "explanation"
         const val COL_CATEGORY = "category"
         const val COL_CHAPTER = "chapter"
+        const val COL_IMAGE = "image"
         val REQUIRED_COLUMNS = listOf(COL_CONTENT, COL_TYPE, COL_CORRECT_ANSWER)
         val SUPPORTED_TYPES = setOf(QuestionType.SINGLE, QuestionType.MULTI, QuestionType.JUDGE)
     }

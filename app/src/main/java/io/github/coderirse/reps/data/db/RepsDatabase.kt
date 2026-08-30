@@ -31,7 +31,7 @@ import io.github.coderirse.reps.data.db.entity.WrongAnswerEntity
         FavoriteEntity::class,
         NoteEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class RepsDatabase : RoomDatabase() {
@@ -56,9 +56,17 @@ abstract class RepsDatabase : RoomDatabase() {
             }
         }
 
+        /** v3: sixth option (builtin bank cg_m_17) + question image assets. */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE questions ADD COLUMN optionF TEXT")
+                db.execSQL("ALTER TABLE questions ADD COLUMN imageFile TEXT")
+            }
+        }
+
         fun build(context: Context): RepsDatabase =
             Room.databaseBuilder(context, RepsDatabase::class.java, DB_NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

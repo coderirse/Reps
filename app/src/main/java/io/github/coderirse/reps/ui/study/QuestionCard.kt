@@ -70,6 +70,7 @@ fun QuestionCard(
             question.optionC?.let { "C" to it },
             question.optionD?.let { "D" to it },
             question.optionE?.let { "E" to it },
+            question.optionF?.let { "F" to it },
         )
     }
 
@@ -105,6 +106,13 @@ fun QuestionCard(
         }
         Spacer(Modifier.height(8.dp))
         Text(question.content, style = MaterialTheme.typography.titleMedium)
+        question.imageFile?.let { path ->
+            Spacer(Modifier.height(12.dp))
+            io.github.coderirse.reps.ui.components.AssetImage(
+                assetPath = path,
+                contentDescription = null,
+            )
+        }
         Spacer(Modifier.height(16.dp))
 
         options.forEach { (letter, text) ->

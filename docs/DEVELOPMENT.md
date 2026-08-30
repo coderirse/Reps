@@ -169,6 +169,19 @@ data class NoteEntity(
 - `exportSchema = true`，schema JSON 提交至 `app/schemas/`（Room 配置 `room.schemaLocation`）。
 - v1.0 发布前允许破坏性变更（`fallbackToDestructiveMigration` 仅 debug）；发布后一律写 `Migration` 并配套 `MigrationTestHelper` 测试。
 - v2（2026-08-30，Phase 2）：`study_sessions` 新增 `deadlineAt`（自定义练习的倒计时截止），Migration `ALTER TABLE ... ADD COLUMN deadlineAt INTEGER NOT NULL DEFAULT 0`。
+- v3（2026-08-30，Phase 3）：`questions` 新增 `optionF TEXT`（内置题库 cg_m_17 有 A–F 六选项）与 `imageFile TEXT`（题图资产相对路径，如 `builtin_bank/images/fig_01.jpeg`）；CSV 规范同步增加 `option_f`、`image` 可选列。
+
+### 4.4 内置题库（2026-08-30 新增）
+
+```
+tools/convert_builtin_bank.py（可复现脚本，含作者修正补丁表+断言）
+  输入: JSON（作者整理）+ question_images/
+  输出: app/src/main/assets/builtin_bank/questions.csv（UTF-8）
+       app/src/main/assets/builtin_bank/images/fig_XX.jpeg
+App 侧: 首启检测 DataStore 标志 builtinImported=false → 读 assets CSV →
+  走既有 EncodingDetector/Parser 管线 → 事务入库（imageFile 映射为资产路径）→
+  置标志；清除所有数据时重置标志 → 下次启动自动恢复
+```
 
 ### 4.4 自定义组卷（CUSTOM 会话创建）
 

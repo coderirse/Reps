@@ -27,6 +27,8 @@ data class UserSettings(
     val fontScale: FontScale = FontScale.STANDARD,
     /** Suppresses the session-restore dialog on launch ("下次不再询问"). */
     val askRestoreSession: Boolean = true,
+    /** Built-in bank already imported into Room (re-run after clear-all-data). */
+    val builtinImported: Boolean = false,
 ) {
     companion object {
         val DEFAULT = UserSettings()
@@ -39,6 +41,7 @@ class SettingsRepository(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FONT_SCALE = stringPreferencesKey("font_scale")
         val ASK_RESTORE_SESSION = booleanPreferencesKey("ask_restore_session")
+        val BUILTIN_IMPORTED = booleanPreferencesKey("builtin_imported")
     }
 
     val settings: Flow<UserSettings> = context.dataStore.data.map { prefs ->
@@ -50,6 +53,7 @@ class SettingsRepository(private val context: Context) {
                 ?.let { runCatching { FontScale.valueOf(it) }.getOrNull() }
                 ?: FontScale.STANDARD,
             askRestoreSession = prefs[Keys.ASK_RESTORE_SESSION] ?: true,
+            builtinImported = prefs[Keys.BUILTIN_IMPORTED] ?: false,
         )
     }
 
@@ -63,5 +67,9 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setAskRestoreSession(ask: Boolean) {
         context.dataStore.edit { it[Keys.ASK_RESTORE_SESSION] = ask }
+    }
+
+    suspend fun setBuiltinImported(imported: Boolean) {
+        context.dataStore.edit { it[Keys.BUILTIN_IMPORTED] = imported }
     }
 }

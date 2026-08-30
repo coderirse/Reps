@@ -59,6 +59,32 @@
     <string name="practice_switch_title">切换练习方式？</string>
     <string name="practice_switch_text">将结束当前练习并开始一轮新的练习。</string>
 
+    <!-- Resume / restore -->
+    <string name="practice_resume">继续上次练习</string>
+    <string name="practice_resume_meta">第 %1$d 题 / 共 %2$d 题</string>
+    <string name="restore_title">继续刷题？</string>
+    <string name="restore_message">「%1$s」上次刷到第 %2$d/%3$d 题\n已用时长 %4$s · 上次活跃 %5$s</string>
+    <string name="restore_continue">继续刷题</string>
+    <string name="restore_restart">重新开始</string>
+    <string name="restore_never_ask">下次不再询问</string>
+    <string name="restore_restart_confirm">将清空本轮已答记录，从第 1 题重新开始。</string>
+
+    <!-- Wrong book / favorites -->
+    <string name="filter_all">全部</string>
+    <string name="wrong_book_meta">累计做错 %1$d 次 · 最后做错 %2$s</string>
+    <string name="wrong_book_mark_mastered">标记已掌握</string>
+    <string name="wrong_book_unmark_mastered">取消掌握</string>
+    <string name="wrong_book_start_practice">开始错题重练</string>
+    <string name="wrong_book_tab_unmastered">未掌握</string>
+    <string name="wrong_book_tab_mastered">已掌握（%1$d）</string>
+    <string name="favorites_start_practice">开始收藏练习</string>
+
+    <!-- Study additions -->
+    <string name="study_favorite">收藏</string>
+    <string name="study_note">笔记</string>
+    <string name="study_note_edit_title">题目笔记</string>
+    <string name="study_note_save">保存</string>
+
     <!-- Import -->
     <string name="import_title">导入题库</string>
     <string name="import_name_label">题库名称</string>

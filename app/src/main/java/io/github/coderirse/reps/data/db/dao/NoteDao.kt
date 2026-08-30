@@ -13,4 +13,7 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE questionId = :questionId")
     suspend fun getByQuestion(questionId: Long): NoteEntity?
+
+    @Query("SELECT * FROM notes WHERE questionId IN (:questionIds)")
+    suspend fun getForIds(questionIds: List<Long>): List<NoteEntity>
 }

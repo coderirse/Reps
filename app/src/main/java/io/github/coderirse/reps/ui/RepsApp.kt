@@ -127,8 +127,12 @@ fun RepsApp() {
                     onDone = { navController.popBackStack() },
                 )
             }
-            composable<WrongBook> { WrongBookScreen() }
-            composable<Favorites> { FavoritesScreen() }
+            composable<WrongBook> {
+                WrongBookScreen(onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) })
+            }
+            composable<Favorites> {
+                FavoritesScreen(onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) })
+            }
             composable<Settings> {
                 SettingsScreen(onOpenAbout = { navController.navigate(About) { launchSingleTop = true } })
             }

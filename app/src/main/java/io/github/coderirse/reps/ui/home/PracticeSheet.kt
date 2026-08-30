@@ -70,6 +70,8 @@ fun PracticeSheet(
     chapterCounts: List<Pair<String, Int>>,
     categoryCounts: List<Pair<String, Int>>,
     countsByType: Map<String, Int>,
+    resumeSession: io.github.coderirse.reps.data.db.entity.StudySessionEntity?,
+    onResume: (Long) -> Unit,
     onStart: (PracticeStartRequest) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -91,6 +93,8 @@ fun PracticeSheet(
             )
             when (val current = step) {
                 SheetStep.SelectType -> TypeList(
+                    resumeSession = resumeSession,
+                    onResume = onResume,
                     onStartSimple = { type ->
                         step = when (type) {
                             PracticeType.CATEGORY -> SheetStep.ChooseFilter
@@ -152,14 +156,29 @@ private fun contextLabel(
 }
 
 @Composable
-private fun TypeList(onStartSimple: (String) -> Unit) {
+private fun TypeList(
+    resumeSession: io.github.coderirse.reps.data.db.entity.StudySessionEntity?,
+    onResume: (Long) -> Unit,
+    onStartSimple: (String) -> Unit,
+) {
+    resumeSession?.let { session ->
+        val total = session.questionIds.split(',').count { it.isNotBlank() }
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.practice_resume)) },
+            supportingContent = {
+                Text(stringResource(R.string.practice_resume_meta, session.currentIndex + 1, total))
+            },
+            modifier = Modifier.clickable { onResume(session.id) },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
     val items = listOf(
         Triple(PracticeType.SEQUENTIAL, R.string.practice_sequential, true),
         Triple(PracticeType.RANDOM, R.string.practice_random, true),
         Triple(PracticeType.CATEGORY, R.string.practice_category, true),
         Triple(PracticeType.CUSTOM, R.string.practice_custom, true),
-        Triple(PracticeType.WRONG_BOOK, R.string.practice_wrong_book, false),
-        Triple(PracticeType.FAVORITE, R.string.practice_favorite, false),
+        Triple(PracticeType.WRONG_BOOK, R.string.practice_wrong_book, true),
+        Triple(PracticeType.FAVORITE, R.string.practice_favorite, true),
     )
     items.forEach { (type, labelRes, enabled) ->
         ListItem(

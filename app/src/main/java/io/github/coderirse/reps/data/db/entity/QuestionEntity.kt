@@ -41,9 +41,12 @@ data class QuestionEntity(
     val optionC: String?,
     val optionD: String?,
     val optionE: String?,
+    val optionF: String? = null,
     /** Normalized correct answer: "A" / "对" / "A,C". */
     val correctAnswer: String,
     val explanation: String?,
     val category: String?,
     val chapter: String?,
+    /** Asset-relative image path (built-in bank), e.g. builtin_bank/images/fig_01.jpeg. */
+    val imageFile: String? = null,
 )

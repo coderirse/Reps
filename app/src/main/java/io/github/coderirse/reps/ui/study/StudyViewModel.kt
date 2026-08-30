@@ -9,6 +9,7 @@ import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.core.Grading
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.entity.AnswerActionType
+import io.github.coderirse.reps.data.db.entity.NoteEntity
 import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
@@ -18,6 +19,7 @@ import io.github.coderirse.reps.data.prefs.SettingsRepository
 import io.github.coderirse.reps.data.prefs.ThemeMode
 import io.github.coderirse.reps.data.prefs.UserSettings
 import io.github.coderirse.reps.data.repo.StudySessionRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -53,6 +55,8 @@ data class StudyUiState(
     val multiTemp: Map<Long, Set<String>> = emptyMap(),
     val remainingMs: Long? = null,
     val sessionCompleted: Boolean = false,
+    val favorites: Set<Long> = emptySet(),
+    val notes: Map<Long, String> = emptyMap(),
 )
 
 class StudyViewModel(
@@ -60,10 +64,14 @@ class StudyViewModel(
     private val sessionRepository: StudySessionRepository,
     private val settingsRepository: SettingsRepository,
     private val db: RepsDatabase,
+    /** Survives ViewModel teardown; used for the ON_STOP fallback save. */
+    private val externalScope: CoroutineScope,
 ) : ViewModel() {
 
     private var session: StudySessionEntity? = null
     private var questionShownAt: Long = 0L
+    private var accumulatedMs: Long = 0L
+    private var lastTickAt: Long = 0L
     private var ticker: Job? = null
 
     private val _state = MutableStateFlow(StudyUiState())
@@ -86,9 +94,13 @@ class StudyViewModel(
             return
         }
         session = loaded
+        accumulatedMs = loaded.accumulatedMs
+        lastTickAt = System.currentTimeMillis()
         val questions = sessionRepository.getQuestions(loaded)
         val answers = sessionRepository.getAnswers(loaded.id).associateBy { it.questionId }
         val subjectName = sessionRepository.getSubjectName(loaded.subjectId).orEmpty()
+        val favoriteIds = db.favoriteDao().getFavoriteIds().toSet()
+        val notes = db.noteDao().getForIds(questions.map { it.id }).associate { it.questionId to it.content }
         _state.update {
             it.copy(
                 loading = false,
@@ -106,6 +118,8 @@ class StudyViewModel(
                     )
                 },
                 remainingMs = if (loaded.deadlineAt > 0) (loaded.deadlineAt - System.currentTimeMillis()).coerceAtLeast(0) else null,
+                favorites = favoriteIds,
+                notes = notes,
             )
         }
         // A timed session whose deadline passed while away: submit immediately.
@@ -114,6 +128,7 @@ class StudyViewModel(
             return
         }
         startTicker()
+        startPeriodicSave()
         enterQuestion(_state.value.currentIndex)
     }
 
@@ -135,6 +150,53 @@ class StudyViewModel(
         }
     }
 
+    /**
+     * Periodic silent save (docs section 5.2): refreshes lastActiveAt, accrues
+     * study time and flushes the current position every 5 seconds.
+     */
+    private fun startPeriodicSave() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(5_000)
+                val s = session ?: break
+                val now = System.currentTimeMillis()
+                val delta = now - lastTickAt
+                lastTickAt = now
+                accumulatedMs += delta
+                persistCurrentState(accumulatedMs = accumulatedMs, scope = externalScope)
+            }
+        }
+    }
+
+    /** ON_STOP fallback: runs on the application scope, survives teardown. */
+    fun saveNow() {
+        val s = session ?: return
+        val now = System.currentTimeMillis()
+        accumulatedMs += now - lastTickAt
+        lastTickAt = now
+        persistCurrentState(accumulatedMs = accumulatedMs, scope = externalScope)
+    }
+
+    /** ON_RESUME: pause time accrual while backgrounded. */
+    fun onResume() {
+        lastTickAt = System.currentTimeMillis()
+    }
+
+    private fun persistCurrentState(accumulatedMs: Long, scope: CoroutineScope) {
+        val s = session ?: return
+        val current = _state.value
+        val oldState = current.questions.getOrNull(current.currentIndex)?.let { current.perQuestion[it.id] }
+        scope.launch {
+            sessionRepository.savePosition(
+                session = s,
+                currentIndex = current.currentIndex,
+                selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
+                answerRevealed = oldState?.revealed ?: false,
+                accumulatedMs = accumulatedMs,
+            )
+        }
+    }
+
     private fun enterQuestion(index: Int) {
         questionShownAt = System.currentTimeMillis()
         val s = session ?: return
@@ -144,21 +206,11 @@ class StudyViewModel(
         }
     }
 
-    /** Swipe / button / answer-card navigation. Persists the position we leave. */
+    /** Swipe / button / answer-card navigation. */
     fun onIndexChange(newIndex: Int) {
         val s = session ?: return
         val current = _state.value
         if (newIndex == current.currentIndex) return
-        val oldQuestion = current.questions.getOrNull(current.currentIndex)
-        val oldState = oldQuestion?.let { current.perQuestion[it.id] }
-        viewModelScope.launch {
-            sessionRepository.savePosition(
-                session = s.copy(currentIndex = current.currentIndex),
-                currentIndex = current.currentIndex,
-                selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
-                answerRevealed = oldState?.revealed ?: false,
-            )
-        }
         _state.update { it.copy(currentIndex = newIndex) }
         enterQuestion(newIndex)
     }
@@ -202,12 +254,6 @@ class StudyViewModel(
                     multiTemp = st.multiTemp - question.id,
                 )
             }
-            sessionRepository.savePosition(
-                session = s.copy(currentIndex = current.currentIndex),
-                currentIndex = current.currentIndex,
-                selectedAnswer = normalized,
-                answerRevealed = true,
-            )
         }
     }
 
@@ -247,6 +293,7 @@ class StudyViewModel(
                 selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
                 answerRevealed = oldState?.revealed ?: false,
                 reciteMode = newMode,
+                accumulatedMs = accumulatedMs,
             )
         }
         _state.update { st ->
@@ -275,19 +322,63 @@ class StudyViewModel(
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
 
+    fun toggleFavorite(questionId: Long) {
+        val current = _state.value
+        val nowFavorite = questionId !in current.favorites
+        _state.update { it.copy(favorites = it.favorites + questionId) }
+        viewModelScope.launch(Dispatchers.IO) {
+            if (nowFavorite) {
+                db.favoriteDao().add(
+                    io.github.coderirse.reps.data.db.entity.FavoriteEntity(
+                        questionId = questionId,
+                        createdAt = System.currentTimeMillis(),
+                    ),
+                )
+            } else {
+                db.favoriteDao().remove(questionId)
+                _state.update { it.copy(favorites = it.favorites - questionId) }
+            }
+        }
+    }
+
+    fun saveNote(questionId: Long, content: String) {
+        _state.update { st ->
+            val notes = if (content.isBlank()) st.notes - questionId else st.notes + (questionId to content)
+            st.copy(notes = notes)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            if (content.isBlank()) {
+                db.noteDao().upsert(NoteEntity(questionId = questionId, content = "", updatedAt = System.currentTimeMillis()))
+            } else {
+                db.noteDao().upsert(NoteEntity(questionId = questionId, content = content, updatedAt = System.currentTimeMillis()))
+            }
+        }
+    }
+
     fun submit() {
         val s = session ?: return
-        val current = _state.value
         viewModelScope.launch {
-            val oldState = current.questions.getOrNull(current.currentIndex)?.let { current.perQuestion[it.id] }
+            persistCurrentStateSync()
+            sessionRepository.markCompleted(s.id)
+            _state.update { it.copy(sessionCompleted = true) }
+        }
+    }
+
+    private suspend fun persistCurrentStateSync() {
+        val s = session ?: return
+        val current = _state.value
+        val now = System.currentTimeMillis()
+        accumulatedMs += now - lastTickAt
+        lastTickAt = now
+        val oldState = current.questions.getOrNull(current.currentIndex)?.let { current.perQuestion[it.id] }
+        withContext(Dispatchers.IO) {
             sessionRepository.savePosition(
-                session = s.copy(currentIndex = current.currentIndex),
+                session = s,
                 currentIndex = current.currentIndex,
                 selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
                 answerRevealed = oldState?.revealed ?: false,
+                accumulatedMs = accumulatedMs,
             )
-            sessionRepository.markCompleted(s.id)
-            _state.update { it.copy(sessionCompleted = true) }
         }
     }
 
@@ -313,6 +404,7 @@ class StudyViewModel(
                     sessionRepository = app.studySessionRepository,
                     settingsRepository = app.settingsRepository,
                     db = app.database,
+                    externalScope = app.applicationScope,
                 )
             }
         }

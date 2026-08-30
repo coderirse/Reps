@@ -1,10 +1,12 @@
 package io.github.coderirse.reps.data.repo
 
+import androidx.room.withTransaction
 import io.github.coderirse.reps.core.CustomOrder
 import io.github.coderirse.reps.core.CustomQuota
 import io.github.coderirse.reps.core.Grading
 import io.github.coderirse.reps.core.PaperBuilder
 import io.github.coderirse.reps.core.Shuffle
+import io.github.coderirse.reps.core.WrongBookRules
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.dao.SessionAnswerDao
 import io.github.coderirse.reps.data.db.entity.AnswerActionType
@@ -124,17 +126,28 @@ class StudySessionRepository(private val db: RepsDatabase) {
     ): Boolean = withContext(Dispatchers.IO) {
         val normalized = Grading.normalizeSelected(question, selectedRaw)
         val correct = Grading.isCorrect(question, selectedRaw)
-        db.sessionAnswerDao().upsert(
-            SessionAnswerEntity(
-                sessionId = session.id,
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            db.sessionAnswerDao().upsert(
+                SessionAnswerEntity(
+                    sessionId = session.id,
+                    questionId = question.id,
+                    actionType = AnswerActionType.SELECTED,
+                    selectedAnswer = normalized,
+                    isCorrect = correct,
+                    answeredAt = now,
+                    dwellMs = dwellMs,
+                ),
+            )
+            // Wrong-book linkage in the same transaction (docs section 5.3).
+            val updated = WrongBookRules.onAnswered(
                 questionId = question.id,
-                actionType = AnswerActionType.SELECTED,
-                selectedAnswer = normalized,
-                isCorrect = correct,
-                answeredAt = System.currentTimeMillis(),
-                dwellMs = dwellMs,
-            ),
-        )
+                current = db.wrongAnswerDao().getByQuestion(question.id),
+                correct = correct,
+                now = now,
+            )
+            updated?.let { db.wrongAnswerDao().upsert(it) }
+        }
         correct
     }
 
@@ -163,6 +176,7 @@ class StudySessionRepository(private val db: RepsDatabase) {
         selectedAnswer: String?,
         answerRevealed: Boolean,
         reciteMode: String = session.reciteMode,
+        accumulatedMs: Long? = null,
     ) = withContext(Dispatchers.IO) {
         db.studySessionDao().upsert(
             session.copy(
@@ -170,6 +184,7 @@ class StudySessionRepository(private val db: RepsDatabase) {
                 selectedAnswer = selectedAnswer,
                 answerRevealed = answerRevealed,
                 reciteMode = reciteMode,
+                accumulatedMs = accumulatedMs ?: session.accumulatedMs,
                 lastActiveAt = System.currentTimeMillis(),
             ),
         )
@@ -177,5 +192,14 @@ class StudySessionRepository(private val db: RepsDatabase) {
 
     suspend fun markCompleted(sessionId: Long) = withContext(Dispatchers.IO) {
         db.studySessionDao().markCompleted(sessionId)
+    }
+
+    /** 重新开始: same paper, cleared answers, fresh timers. */
+    suspend fun restartSession(sessionId: Long) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            db.sessionAnswerDao().deleteForSession(sessionId)
+            db.studySessionDao().resetForRestart(sessionId, now)
+        }
     }
 }

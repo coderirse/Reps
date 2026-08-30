@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -70,8 +73,23 @@ fun StudyScreen(
     var showAnswerCard by remember { mutableStateOf(false) }
     var showPracticeMenu by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
     var pendingPracticeType by remember { mutableStateOf<String?>(null) }
     val systemDark = isSystemInDarkTheme()
+
+    // ON_STOP fallback save runs on the application scope (docs section 5.2).
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> viewModel.saveNow()
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> viewModel.onResume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Timed session hit zero (or was already expired): leave for the result page.
     LaunchedEffect(state.sessionCompleted) {
@@ -174,7 +192,7 @@ fun StudyScreen(
                 )
             }
 
-            // Row 2: practice-type dropdown + Mode A/B switcher
+            // Row 2: practice-type dropdown + Mode A/B switcher + favorite/note
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,6 +215,27 @@ fun StudyScreen(
                         onClick = { viewModel.onReciteModeChange(ReciteMode.TEST) },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
                     ) { Text(stringResource(R.string.study_mode_b)) }
+                }
+                currentQuestion?.let { question ->
+                    val isFavorite = question.id in state.favorites
+                    IconButton(onClick = { viewModel.toggleFavorite(question.id) }) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = stringResource(R.string.study_favorite),
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    IconButton(onClick = { showNoteDialog = true }) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = stringResource(R.string.study_note),
+                            tint = if (state.notes.containsKey(question.id)) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
                 }
             }
 
@@ -328,7 +367,43 @@ fun StudyScreen(
                 },
             )
         }
+
+        if (showNoteDialog) {
+            currentQuestion?.let { question ->
+                NoteDialog(
+                    initial = state.notes[question.id].orEmpty(),
+                    onDismiss = { showNoteDialog = false },
+                    onSave = { text ->
+                        showNoteDialog = false
+                        viewModel.saveNote(question.id, text)
+                    },
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.study_note_edit_title)) },
+        text = {
+            androidx.compose.material3.OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(text) }) { Text(stringResource(R.string.study_note_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
+    )
 }
 
 @Composable

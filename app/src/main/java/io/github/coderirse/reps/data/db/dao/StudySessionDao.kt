@@ -28,6 +28,13 @@ interface StudySessionDao {
     @Query("UPDATE study_sessions SET status = 1 WHERE id = :id")
     suspend fun markCompleted(id: Long)
 
+    /** 重新开始: same paper, fresh state. */
+    @Query(
+        "UPDATE study_sessions SET currentIndex = 0, selectedAnswer = NULL, answerRevealed = 0, " +
+            "status = 0, startedAt = :now, lastActiveAt = :now, accumulatedMs = 0 WHERE id = :id",
+    )
+    suspend fun resetForRestart(id: Long, now: Long)
+
     /** Past the 7-day restore window -> mark EXPIRED so it never resurfaces. */
     @Query("UPDATE study_sessions SET status = 2 WHERE status = 0 AND lastActiveAt < :cutoffEpochMs")
     suspend fun expireInactiveBefore(cutoffEpochMs: Long)

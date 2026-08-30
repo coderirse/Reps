@@ -11,21 +11,71 @@ import io.github.coderirse.reps.core.CustomQuota
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.SubjectEntity
+import io.github.coderirse.reps.data.db.entity.StudySessionEntity
+import io.github.coderirse.reps.data.prefs.SettingsRepository
+import io.github.coderirse.reps.data.repo.ImportRepository
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class HomeViewModel(
     private val db: RepsDatabase,
     private val sessionRepository: StudySessionRepository,
+    private val importRepository: ImportRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     val subjects: Flow<List<SubjectEntity>> = db.subjectDao().observeAll()
 
+    /** All unfinished sessions; drives the startup restore dialog. */
+    val activeSessions: Flow<List<StudySessionEntity>> = db.studySessionDao().observeActive()
+
+    val settings: Flow<io.github.coderirse.reps.data.prefs.UserSettings> = settingsRepository.settings
+
+    init {
+        // Built-in bank: import once on first launch (and again after clear-data).
+        viewModelScope.launch {
+            runCatching { settingsRepository.settings.first().builtinImported }
+                .getOrNull()
+                ?.takeIf { !it }
+                ?.let {
+                    runCatching {
+                        importRepository.importBuiltinBank(ImportRepository.BUILTIN_SUBJECT_NAME)
+                    }.onSuccess {
+                        settingsRepository.setBuiltinImported(true)
+                    }.onFailure { /* retry on next launch; flag stays unset */ }
+                }
+        }
+    }
+
     fun deleteSubject(subjectId: Long) {
         viewModelScope.launch(Dispatchers.IO) { db.subjectDao().deleteById(subjectId) }
+    }
+
+    /** Sessions idle beyond the 7-day window never resurface. */
+    fun expireOldSessions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            db.studySessionDao().expireInactiveBefore(System.currentTimeMillis() - RESTORE_WINDOW_MS)
+        }
+    }
+
+    suspend fun getActiveSession(subjectId: Long): StudySessionEntity? = withContext(Dispatchers.IO) {
+        db.studySessionDao().getActiveBySubject(subjectId)
+    }
+
+    suspend fun getSubjectName(subjectId: Long): String = withContext(Dispatchers.IO) {
+        db.subjectDao().getById(subjectId)?.name.orEmpty()
+    }
+
+    suspend fun restartSession(sessionId: Long) {
+        sessionRepository.restartSession(sessionId)
+    }
+
+    fun setAskRestore(ask: Boolean) {
+        viewModelScope.launch { settingsRepository.setAskRestoreSession(ask) }
     }
 
     suspend fun countsByType(subjectId: Long): Map<String, Int> = withContext(Dispatchers.IO) {
@@ -65,10 +115,14 @@ class HomeViewModel(
             )
         }
         val baseIds = withContext(Dispatchers.IO) {
-            when (filterDimension) {
-                FILTER_CHAPTER -> db.questionDao().getIdsByChapter(subjectId, filterValue.orEmpty())
-                FILTER_CATEGORY -> db.questionDao().getIdsByCategory(subjectId, filterValue.orEmpty())
-                else -> db.questionDao().getIdsBySubject(subjectId)
+            when (practiceType) {
+                PRACTICE_WRONG_BOOK -> db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
+                PRACTICE_FAVORITE -> db.favoriteDao().getFavoriteIdsForSubject(subjectId)
+                else -> when (filterDimension) {
+                    FILTER_CHAPTER -> db.questionDao().getIdsByChapter(subjectId, filterValue.orEmpty())
+                    FILTER_CATEGORY -> db.questionDao().getIdsByCategory(subjectId, filterValue.orEmpty())
+                    else -> db.questionDao().getIdsBySubject(subjectId)
+                }
             }
         }
         return sessionRepository.createSession(
@@ -85,11 +139,20 @@ class HomeViewModel(
     companion object {
         const val FILTER_CHAPTER = "chapter"
         const val FILTER_CATEGORY = "category"
+        const val FILTER_TARGET = "__filter_target__"
+        const val PRACTICE_WRONG_BOOK = "wrong_book"
+        const val PRACTICE_FAVORITE = "favorite"
+        const val RESTORE_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as RepsApplication
-                HomeViewModel(app.database, app.studySessionRepository)
+                HomeViewModel(
+                    db = app.database,
+                    sessionRepository = app.studySessionRepository,
+                    importRepository = app.importRepository,
+                    settingsRepository = app.settingsRepository,
+                )
             }
         }
     }
