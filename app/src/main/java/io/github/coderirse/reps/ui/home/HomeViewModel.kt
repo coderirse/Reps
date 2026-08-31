@@ -105,6 +105,8 @@ class HomeViewModel(
     /**
      * Creates the session and returns its id. One ACTIVE session per subject:
      * the previous one is completed on entry.
+     * @return session id, or null when there is nothing to practice
+     * (empty wrong-book/favorites/filter result) or the custom quota is invalid.
      */
     suspend fun startPractice(
         subjectId: Long,
@@ -116,11 +118,13 @@ class HomeViewModel(
         customQuota: CustomQuota? = null,
         customOrder: CustomOrder = CustomOrder.SEQUENTIAL,
         deadlineMinutes: Int = 0,
-    ): Long {
+    ): Long? {
         if (customQuota != null) {
-            return sessionRepository.createCustomSession(
-                subjectId, customQuota, customOrder, reciteMode, deadlineMinutes,
-            )
+            return runCatching {
+                sessionRepository.createCustomSession(
+                    subjectId, customQuota, customOrder, reciteMode, deadlineMinutes,
+                )
+            }.getOrNull()
         }
         val baseIds = withContext(Dispatchers.IO) {
             when (practiceType) {
@@ -133,6 +137,7 @@ class HomeViewModel(
                 }
             }
         }
+        if (baseIds.isEmpty()) return null
         return sessionRepository.createSession(
             subjectId = subjectId,
             practiceType = practiceType,

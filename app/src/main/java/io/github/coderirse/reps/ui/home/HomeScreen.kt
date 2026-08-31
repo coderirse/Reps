@@ -287,7 +287,11 @@ private fun SubjectList(
                         customOrder = request.customOrder,
                         deadlineMinutes = request.deadlineMinutes,
                     )
-                    onStartSession(sessionId)
+                    if (sessionId != null) {
+                        onStartSession(sessionId)
+                    } else {
+                        snackbarHostState.showSnackbar("该练习范围下没有可练的题目")
+                    }
                 }
             },
             onDismiss = { sheetSubject = null },

@@ -74,6 +74,13 @@ class StudyViewModel(
     private var lastTickAt: Long = 0L
     private var ticker: Job? = null
 
+    /**
+     * Questions with a grade write in flight. Checked and filled synchronously
+     * on the main thread before the DB coroutine launches, so rapid double
+     * taps cannot grade the same question twice (wrongCount would double).
+     */
+    private val gradingInFlight = mutableSetOf<Long>()
+
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state
 
@@ -100,7 +107,11 @@ class StudyViewModel(
         val answers = sessionRepository.getAnswers(loaded.id).associateBy { it.questionId }
         val subjectName = sessionRepository.getSubjectName(loaded.subjectId).orEmpty()
         val favoriteIds = db.favoriteDao().getFavoriteIds().toSet()
-        val notes = db.noteDao().getForIds(questions.map { it.id }).associate { it.questionId to it.content }
+        // Chunked: a 1000+ question bank would exceed SQLite's host-parameter limit.
+        val notes = questions.map { it.id }
+            .chunked(500)
+            .flatMap { db.noteDao().getForIds(it) }
+            .associate { it.questionId to it.content }
         _state.update {
             it.copy(
                 loading = false,
@@ -237,9 +248,18 @@ class StudyViewModel(
         val s = session ?: return
         val current = _state.value
         if (current.perQuestion[question.id]?.graded == true) return
+        // Synchronous re-entry guard: the graded flag above only flips after
+        // the DB write completes, so two fast taps would both pass it.
+        if (!gradingInFlight.add(question.id)) return
         val dwellMs = (System.currentTimeMillis() - questionShownAt).coerceAtLeast(0)
         viewModelScope.launch {
-            val correct = sessionRepository.recordGradedAnswer(s, question, raw, dwellMs)
+            val correct = runCatching {
+                sessionRepository.recordGradedAnswer(s, question, raw, dwellMs)
+            }.getOrNull()
+            if (correct == null) {
+                gradingInFlight.remove(question.id)
+                return@launch
+            }
             val normalized = Grading.normalizeSelected(question, raw)
             _state.update { st ->
                 st.copy(
@@ -254,6 +274,7 @@ class StudyViewModel(
                     multiTemp = st.multiTemp - question.id,
                 )
             }
+            gradingInFlight.remove(question.id)
         }
     }
 

@@ -111,8 +111,18 @@ class StudySessionRepository(private val db: RepsDatabase) {
     suspend fun getQuestions(session: StudySessionEntity): List<QuestionEntity> =
         withContext(Dispatchers.IO) {
             val ids = session.questionIds.split(',').mapNotNull { it.toLongOrNull() }
-            val byId = db.questionDao().getByIds(ids).associateBy { it.id }
+            val byId = getQuestionsByIds(ids).associateBy { it.id }
             ids.mapNotNull { byId[it] }
+        }
+
+    /**
+     * Chunked id lookup: SQLite's host-parameter limit is 999 on older
+     * Android (minSdk 26), so a 1000+ question bank would crash a plain
+     * `WHERE id IN (:ids)`. Batches of 500 stay safely under the limit.
+     */
+    suspend fun getQuestionsByIds(ids: List<Long>): List<QuestionEntity> =
+        withContext(Dispatchers.IO) {
+            ids.chunked(SQL_IN_CHUNK).flatMap { chunk -> db.questionDao().getByIds(chunk) }
         }
 
     suspend fun getAnswers(sessionId: Long): List<SessionAnswerEntity> =
@@ -201,5 +211,9 @@ class StudySessionRepository(private val db: RepsDatabase) {
             db.sessionAnswerDao().deleteForSession(sessionId)
             db.studySessionDao().resetForRestart(sessionId, now)
         }
+    }
+
+    companion object {
+        private const val SQL_IN_CHUNK = 500
     }
 }
