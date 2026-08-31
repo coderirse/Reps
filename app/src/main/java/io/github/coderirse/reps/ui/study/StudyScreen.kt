@@ -201,7 +201,7 @@ fun StudyScreen(
                         // truth remains the settings page. Row 1 previously had
                         // an inline "深色" Switch that permanently overrode the
                         // system preference and crowded the bar.
-                        trailingContent = {
+                        trailingIcon = {
                             Switch(
                                 checked = dark,
                                 onCheckedChange = { value ->

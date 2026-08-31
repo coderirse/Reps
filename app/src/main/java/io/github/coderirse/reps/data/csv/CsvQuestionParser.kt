@@ -119,23 +119,22 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     // Surface invalid letters explicitly instead of silently
                     // filtering them out ("A,G" used to become "A" and then
                     // fail with a confusing "needs two options" message).
-                    val invalidLetters = upper.filter { it.isLetter() && it !in 'A'..'F' }.distinct()
+                    val invalidLetters = upper.filter { it.isLetter() && it !in 'A'..'F' }.toSet()
                     if (invalidLetters.isNotEmpty()) {
                         fail("第 $lineNo 行：答案包含无效选项字母 ${invalidLetters.joinToString("、")}（收到「$rawAnswer」）")
                         return@forEachIndexed
                     }
-                    val distinct = upper.filter { it in 'A'..'F' }.distinct().map { it.toString() }
-                    if (distinct.size < 2) {
+                    val letters = upper.filter { it in 'A'..'F' }.toSet().map { it.toString() }.sorted()
+                    if (letters.size < 2) {
                         fail("第 $lineNo 行：多选答案至少需要两个不同选项（收到「$rawAnswer」）")
                         return@forEachIndexed
                     }
-                    val sorted = distinct.sorted()
-                    val missingOption = distinct.firstOrNull { optionOf(it[0]).isNullOrBlank() }
+                    val missingOption = letters.firstOrNull { optionOf(it[0]).isNullOrBlank() }
                     if (missingOption != null) {
                         fail("第 $lineNo 行：答案 $missingOption 对应的选项为空")
                         return@forEachIndexed
                     }
-                    sorted.joinToString(",")
+                    letters.joinToString(",")
                 }
                 else -> {
                     skippedUnsupported++
