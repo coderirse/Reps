@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /** Question types. MVP supports [TYPE_SINGLE] and [TYPE_JUDGE]; MULTI/BLANK are reserved. */
 object QuestionType {
@@ -29,6 +30,7 @@ object QuestionType {
         Index(value = ["subjectId", "chapter"]),
     ],
 )
+@Serializable
 data class QuestionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val subjectId: Long,

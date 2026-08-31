@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 object PracticeType {
     const val SEQUENTIAL = "sequential"
@@ -40,6 +41,7 @@ object SessionStatus {
     ],
     indices = [Index("subjectId"), Index("status")],
 )
+@Serializable
 data class StudySessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val subjectId: Long,

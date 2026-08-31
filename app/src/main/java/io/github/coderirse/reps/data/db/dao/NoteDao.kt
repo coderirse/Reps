@@ -11,6 +11,10 @@ interface NoteDao {
     @Upsert
     suspend fun upsert(note: NoteEntity)
 
+    /** Backup import: matched by questionId primary key. */
+    @Upsert
+    suspend fun upsertAll(notes: List<NoteEntity>)
+
     @Query("SELECT * FROM notes WHERE questionId = :questionId")
     suspend fun getByQuestion(questionId: Long): NoteEntity?
 

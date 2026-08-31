@@ -3,6 +3,7 @@ package io.github.coderirse.reps.data.db.entity
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(
     tableName = "favorites",
@@ -15,6 +16,7 @@ import androidx.room.PrimaryKey
         ),
     ],
 )
+@Serializable
 data class FavoriteEntity(
     @PrimaryKey val questionId: Long,
     val createdAt: Long,

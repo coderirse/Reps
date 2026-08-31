@@ -12,6 +12,13 @@ interface StudySessionDao {
     @Upsert
     suspend fun upsert(session: StudySessionEntity): Long
 
+    @Query("SELECT * FROM study_sessions")
+    suspend fun getAll(): List<StudySessionEntity>
+
+    /** Backup import: matched by primary key id. */
+    @Upsert
+    suspend fun upsertAll(sessions: List<StudySessionEntity>)
+
     @Query("SELECT * FROM study_sessions WHERE id = :id")
     suspend fun getById(id: Long): StudySessionEntity?
 

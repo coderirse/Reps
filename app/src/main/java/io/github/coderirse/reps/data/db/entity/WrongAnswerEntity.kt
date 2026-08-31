@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 /** Globally persisted wrong-book entry; survives across sessions. */
 @Entity(
@@ -18,6 +19,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [Index("mastered")],
 )
+@Serializable
 data class WrongAnswerEntity(
     @PrimaryKey val questionId: Long,
     val wrongCount: Int,

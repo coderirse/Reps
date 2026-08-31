@@ -24,6 +24,13 @@ interface WrongAnswerDao {
     @Upsert
     suspend fun upsert(wrongAnswer: WrongAnswerEntity)
 
+    @Query("SELECT * FROM wrong_answers")
+    suspend fun getAll(): List<WrongAnswerEntity>
+
+    /** Backup import: matched by questionId primary key. */
+    @Upsert
+    suspend fun upsertAll(wrongAnswers: List<WrongAnswerEntity>)
+
     @Query("SELECT * FROM wrong_answers WHERE questionId = :questionId")
     suspend fun getByQuestion(questionId: Long): WrongAnswerEntity?
 

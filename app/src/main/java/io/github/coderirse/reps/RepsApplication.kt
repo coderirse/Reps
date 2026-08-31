@@ -1,6 +1,7 @@
 package io.github.coderirse.reps
 
 import android.app.Application
+import io.github.coderirse.reps.data.backup.BackupRepository
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.prefs.SettingsRepository
 import io.github.coderirse.reps.data.repo.ImportRepository
@@ -28,4 +29,6 @@ class RepsApplication : Application() {
     val importRepository: ImportRepository by lazy { ImportRepository(this, database) }
 
     val studySessionRepository: StudySessionRepository by lazy { StudySessionRepository(database) }
+
+    val backupRepository: BackupRepository by lazy { BackupRepository(this, database, settingsRepository) }
 }

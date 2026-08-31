@@ -15,6 +15,12 @@ interface SessionAnswerDao {
     @Upsert
     suspend fun upsert(answer: SessionAnswerEntity)
 
+    @Query("SELECT * FROM session_answers")
+    suspend fun getAll(): List<SessionAnswerEntity>
+
+    @Upsert
+    suspend fun upsertAll(answers: List<SessionAnswerEntity>)
+
     @Query("SELECT * FROM session_answers WHERE sessionId = :sessionId")
     suspend fun getBySession(sessionId: Long): List<SessionAnswerEntity>
 
