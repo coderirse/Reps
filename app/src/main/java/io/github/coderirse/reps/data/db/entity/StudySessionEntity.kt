@@ -49,9 +49,10 @@ data class StudySessionEntity(
     val reciteMode: String,
     /**
      * Snapshot of question ids for this session, ordered as the session queue
-     * (shuffled for RANDOM at creation time using [randomSeed]). JSON array.
-     * Snapshotting keeps the queue stable even if the wrong-book/favorites
-     * change mid-session.
+     * (shuffled for RANDOM at creation time using [randomSeed]). Stored as a
+     * comma-separated id string ("1,2,3") — NOT a JSON array. Snapshotting
+     * keeps the queue stable even if the wrong-book/favorites change
+     * mid-session.
      */
     val questionIds: String,
     /** Index into [questionIds]. */

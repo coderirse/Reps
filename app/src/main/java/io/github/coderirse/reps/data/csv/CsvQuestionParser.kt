@@ -30,6 +30,8 @@ data class CsvParseResult(
     val preview: List<ParsedQuestion> = emptyList(),
     val totalRows: Int = 0,
     val skippedUnsupported: Int = 0,
+    /** Rows that carry an image reference (user imports cannot display images yet). */
+    val withImage: Int = 0,
     val errors: List<RowError> = emptyList(),
 ) {
     val canImport: Boolean get() = headerError == null && questions.isNotEmpty()
@@ -103,7 +105,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                 QuestionType.SINGLE -> {
                     val letter = rawAnswer?.uppercase()?.singleOrNull()
                     if (letter == null || letter !in 'A'..'F') {
-                        fail("第 $lineNo 行：单选答案必须是 A-E（收到「$rawAnswer」）")
+                        fail("第 $lineNo 行：单选答案必须是 A-F 之一（收到「$rawAnswer」）")
                         return@forEachIndexed
                     }
                     if (optionOf(letter).isNullOrBlank()) {
@@ -113,8 +115,16 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     letter.toString()
                 }
                 QuestionType.MULTI -> {
-                    val letters = rawAnswer?.uppercase()?.filter { it in 'A'..'F' }?.map { it.toString() }
-                    val distinct = letters?.distinct().orEmpty()
+                    val upper = rawAnswer?.uppercase().orEmpty()
+                    // Surface invalid letters explicitly instead of silently
+                    // filtering them out ("A,G" used to become "A" and then
+                    // fail with a confusing "needs two options" message).
+                    val invalidLetters = upper.filter { it.isLetter() && it !in 'A'..'F' }.distinct()
+                    if (invalidLetters.isNotEmpty()) {
+                        fail("第 $lineNo 行：答案包含无效选项字母 ${invalidLetters.joinToString("、")}（收到「$rawAnswer」）")
+                        return@forEachIndexed
+                    }
+                    val distinct = upper.filter { it in 'A'..'F' }.distinct().map { it.toString() }
                     if (distinct.size < 2) {
                         fail("第 $lineNo 行：多选答案至少需要两个不同选项（收到「$rawAnswer」）")
                         return@forEachIndexed
@@ -133,7 +143,19 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                 }
             }
 
-            val orderIndex = cell(COL_ID)?.toIntOrNull() ?: (rowIndex + 1)
+            // Explicit id must be a positive integer; fall back to the row
+            // number only when the column is empty.
+            val rawId = cell(COL_ID)
+            val orderIndex = if (rawId != null) {
+                val parsed = rawId.toIntOrNull()
+                if (parsed == null || parsed < 1) {
+                    fail("第 $lineNo 行：题号必须是正整数（收到「$rawId」）")
+                    return@forEachIndexed
+                }
+                parsed
+            } else {
+                rowIndex + 1
+            }
             if (!seenIds.add(orderIndex)) {
                 fail("第 $lineNo 行：题号 $orderIndex 重复")
                 return@forEachIndexed
@@ -162,6 +184,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
             preview = questions.take(maxPreview),
             totalRows = dataRows.size,
             skippedUnsupported = skippedUnsupported,
+            withImage = questions.count { it.image != null },
             errors = errors,
         )
     }

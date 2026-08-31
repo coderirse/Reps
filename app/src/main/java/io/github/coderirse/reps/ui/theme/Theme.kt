@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
@@ -66,6 +67,14 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 /**
+ * Effective dark state after applying the user's theme-mode preference.
+ * Leaves must read this instead of isSystemInDarkTheme(), which ignores the
+ * in-app override — otherwise the grading colors render the light palette
+ * on a dark background when the user forces dark mode from within the app.
+ */
+val LocalRepsDarkTheme = compositionLocalOf { false }
+
+/**
  * App theme: fixed brand palette (no Material You dynamic color) so the
  * identity stays consistent, plus a user font-scale multiplier layered on
  * top of the system font scale (Phase 1 mechanism; settings UI in Phase 4).
@@ -86,7 +95,10 @@ fun RepsTheme(
         density = baseDensity.density,
         fontScale = baseDensity.fontScale * fontScaleMultiplier,
     )
-    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+    CompositionLocalProvider(
+        LocalRepsDarkTheme provides darkTheme,
+        LocalDensity provides scaledDensity,
+    ) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
             typography = Typography,

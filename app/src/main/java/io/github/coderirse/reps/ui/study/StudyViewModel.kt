@@ -346,18 +346,32 @@ class StudyViewModel(
     fun toggleFavorite(questionId: Long) {
         val current = _state.value
         val nowFavorite = questionId !in current.favorites
-        _state.update { it.copy(favorites = it.favorites + questionId) }
+        // Optimistic per-branch update with rollback, so the heart reacts
+        // instantly and a failed DB write doesn't desync UI and database.
+        _state.update {
+            it.copy(
+                favorites = if (nowFavorite) it.favorites + questionId else it.favorites - questionId,
+            )
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            if (nowFavorite) {
-                db.favoriteDao().add(
-                    io.github.coderirse.reps.data.db.entity.FavoriteEntity(
-                        questionId = questionId,
-                        createdAt = System.currentTimeMillis(),
-                    ),
-                )
-            } else {
-                db.favoriteDao().remove(questionId)
-                _state.update { it.copy(favorites = it.favorites - questionId) }
+            val result = runCatching {
+                if (nowFavorite) {
+                    db.favoriteDao().add(
+                        io.github.coderirse.reps.data.db.entity.FavoriteEntity(
+                            questionId = questionId,
+                            createdAt = System.currentTimeMillis(),
+                        ),
+                    )
+                } else {
+                    db.favoriteDao().remove(questionId)
+                }
+            }
+            if (result.isFailure) {
+                _state.update {
+                    it.copy(
+                        favorites = if (nowFavorite) it.favorites - questionId else it.favorites + questionId,
+                    )
+                }
             }
         }
     }
@@ -369,7 +383,9 @@ class StudyViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             if (content.isBlank()) {
-                db.noteDao().upsert(NoteEntity(questionId = questionId, content = "", updatedAt = System.currentTimeMillis()))
+                // Delete instead of upserting an empty row: empty note rows
+                // would keep the note icon highlighted forever.
+                db.noteDao().delete(questionId)
             } else {
                 db.noteDao().upsert(NoteEntity(questionId = questionId, content = content, updatedAt = System.currentTimeMillis()))
             }

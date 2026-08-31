@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.core.TimeFormat
 import io.github.coderirse.reps.data.db.entity.SubjectEntity
 import io.github.coderirse.reps.ui.components.EmptyState
 import kotlinx.coroutines.launch
@@ -196,10 +197,7 @@ private data class RestoreMeta(
     val lastActiveAt: Long,
 )
 
-private fun formatDuration(ms: Long): String {
-    val totalSec = ms / 1000
-    return "%02d:%02d".format(totalSec / 60, totalSec % 60)
-}
+private fun formatDuration(ms: Long): String = TimeFormat.duration(ms)
 
 private fun formatLastActive(epochMs: Long): String =
     java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(Date(epochMs))

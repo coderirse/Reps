@@ -16,4 +16,11 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE questionId IN (:questionIds)")
     suspend fun getForIds(questionIds: List<Long>): List<NoteEntity>
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAll(): List<NoteEntity>
+
+    /** Blank notes are removed instead of upserted as empty rows. */
+    @Query("DELETE FROM notes WHERE questionId = :questionId")
+    suspend fun delete(questionId: Long)
 }

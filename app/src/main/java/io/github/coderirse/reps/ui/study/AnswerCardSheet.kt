@@ -3,7 +3,6 @@ package io.github.coderirse.reps.ui.study
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.entity.AnswerActionType
+import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
 import io.github.coderirse.reps.ui.theme.SuccessDark
 import io.github.coderirse.reps.ui.theme.SuccessLight
 import io.github.coderirse.reps.ui.theme.WrongDark
@@ -52,7 +52,7 @@ fun AnswerCardSheet(
     onJump: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val dark = isSystemInDarkTheme()
+    val dark = LocalRepsDarkTheme.current
     val correctColor = if (dark) SuccessDark else SuccessLight
     val wrongColor = if (dark) WrongDark else WrongLight
     val browsedColor = MaterialTheme.colorScheme.secondary

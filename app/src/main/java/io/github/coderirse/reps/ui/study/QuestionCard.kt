@@ -5,7 +5,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +33,7 @@ import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.ui.import.typeLabel
+import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
 import io.github.coderirse.reps.ui.theme.SuccessDark
 import io.github.coderirse.reps.ui.theme.SuccessLight
 
@@ -56,7 +56,7 @@ fun QuestionCard(
     onConfirmMulti: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dark = isSystemInDarkTheme()
+    val dark = LocalRepsDarkTheme.current
     val success = if (dark) SuccessDark else SuccessLight
     val successContainer = if (dark) Color(0xFF1B3A1F) else Color(0xFFC8E6C9)
     val wrongContainer = MaterialTheme.colorScheme.errorContainer
