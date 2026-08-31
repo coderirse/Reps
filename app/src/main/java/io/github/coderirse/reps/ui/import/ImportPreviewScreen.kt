@@ -60,7 +60,10 @@ fun ImportPreviewScreen(
                 title = { Text(stringResource(R.string.import_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
@@ -139,6 +142,14 @@ private fun ReadyContent(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (result.withImage > 0) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                stringResource(R.string.import_image_hint, result.withImage),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
         if (result.errors.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Card(
