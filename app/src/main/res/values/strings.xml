@@ -13,6 +13,7 @@
     <string name="home_import_button">导入题库</string>
     <string name="home_import_coming_soon">题库导入将在下个阶段开放</string>
     <string name="subject_meta">%1$d 题 · 导入于 %2$s</string>
+    <string name="subject_progress">已练 %1$d/%2$d</string>
 
     <!-- Wrong book -->
     <string name="wrong_book_empty_title">错题本还是空的</string>
@@ -71,9 +72,17 @@
 
     <!-- Wrong book / favorites -->
     <string name="filter_all">全部</string>
-    <string name="wrong_book_meta">累计做错 %1$d 次 · 最后做错 %2$s</string>
+    <string name="wrong_book_wrong_count">累计做错 %1$d 次</string>
+    <string name="wrong_book_last_wrong">最后做错 %1$s</string>
+    <string name="wrong_book_no_unmastered">暂无未掌握的错题</string>
+    <string name="wrong_book_detail_title">错题详情</string>
+    <string name="wrong_book_pick_subject">选择要重练的题库</string>
+    <string name="wrong_book_subject_meta">%1$d 题未掌握</string>
     <string name="wrong_book_mark_mastered">标记已掌握</string>
     <string name="wrong_book_unmark_mastered">取消掌握</string>
+    <string name="wrong_book_action_master">标掌握</string>
+    <string name="wrong_book_action_mastered">已掌握</string>
+    <string name="wrong_book_practice_this">重练本题</string>
     <string name="wrong_book_start_practice">开始错题重练</string>
     <string name="wrong_book_tab_unmastered">未掌握</string>
     <string name="wrong_book_tab_mastered">已掌握（%1$d）</string>

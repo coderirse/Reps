@@ -16,6 +16,8 @@ data class WrongBookRow(
     val mastered: Boolean,
 )
 
+data class SubjectWrongCount(val subjectId: Long, val count: Int)
+
 @Dao
 interface WrongAnswerDao {
 
@@ -52,4 +54,11 @@ interface WrongAnswerDao {
 
     @Query("UPDATE wrong_answers SET mastered = :mastered WHERE questionId = :questionId")
     suspend fun setMastered(questionId: Long, mastered: Boolean)
+
+    @Query(
+        "SELECT q.subjectId AS subjectId, COUNT(*) AS count " +
+            "FROM wrong_answers w JOIN questions q ON q.id = w.questionId " +
+            "WHERE w.mastered = 0 GROUP BY q.subjectId",
+    )
+    suspend fun getUnmasteredCountsBySubject(): List<SubjectWrongCount>
 }
