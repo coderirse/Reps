@@ -159,10 +159,16 @@
     <string name="font_large">大</string>
     <string name="font_extra_large">特大</string>
     <string name="settings_section_data">数据</string>
+    <string name="settings_backup_export">导出备份</string>
+    <string name="settings_backup_export_description">将题库、题目、刷题进度、错题、收藏与笔记保存为一个 JSON 文件（不含题目图片）</string>
+    <string name="settings_backup_import">导入备份</string>
+    <string name="settings_backup_import_description">选择备份文件，按记录 id 覆盖合并到本机数据</string>
+    <string name="settings_backup_export_done">已导出 %1$d 个题库 · %2$d 道题目</string>
+    <string name="settings_backup_import_done">已导入 %1$d 个题库 · %2$d 道题目</string>
     <string name="settings_clear_data">清除所有数据</string>
     <string name="settings_clear_data_description">删除全部题库、刷题进度、错题与收藏，操作不可恢复</string>
     <string name="settings_clear_done">已清除全部数据</string>
-    <string name="settings_section_about">关于</string>
+    <string name="settings_about_reps">关于 Reps</string>
     <string name="dialog_clear_title">确认清除所有数据？</string>
     <string name="dialog_clear_text">将删除全部题库、刷题进度、错题与收藏，且无法恢复。</string>
     <string name="dialog_clear_confirm">清除</string>
