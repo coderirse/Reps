@@ -1,7 +1,6 @@
 package io.github.coderirse.reps.ui.study
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -34,15 +34,14 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -53,8 +52,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.entity.PracticeType
+import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.data.prefs.ThemeMode
+import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -72,10 +73,11 @@ fun StudyScreen(
     val scope = rememberCoroutineScope()
     var showAnswerCard by remember { mutableStateOf(false) }
     var showPracticeMenu by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var pendingPracticeType by remember { mutableStateOf<String?>(null) }
-    val systemDark = isSystemInDarkTheme()
+    val dark = LocalRepsDarkTheme.current
 
     // ON_STOP fallback save runs on the application scope (docs section 5.2).
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -140,20 +142,30 @@ fun StudyScreen(
     val currentQuestion = questions.getOrNull(state.currentIndex)
     val currentUi = currentQuestion?.let { state.perQuestion[it.id] }
     val timed = state.remainingMs != null
+    val ungradedCount = questions.count { state.perQuestion[it.id]?.graded != true }
     val remainingText = state.remainingMs?.let { ms ->
         val totalSec = (ms / 1000).coerceAtLeast(0)
         "%02d:%02d".format(totalSec / 60, totalSec % 60)
     }
+    // Multi-choice pending confirmation: the primary button becomes 确认答案.
+    val multiPending = currentQuestion != null &&
+        currentQuestion.type == QuestionType.MULTI &&
+        state.reciteMode == ReciteMode.TEST &&
+        currentUi?.graded != true &&
+        state.multiTemp[currentQuestion.id].orEmpty().isNotEmpty()
 
     Scaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            // Top bar row 1: back / subject / countdown / dark toggle
+            // Top bar row 1: back / subject / countdown / overflow menu
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 IconButton(onClick = onClose) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.action_back),
+                    )
                 }
                 Column(Modifier.weight(1f)) {
                     Text(
@@ -179,17 +191,29 @@ fun StudyScreen(
                     )
                     Spacer(Modifier.width(8.dp))
                 }
-                Text(stringResource(R.string.study_dark_label), style = MaterialTheme.typography.labelSmall)
-                Switch(
-                    checked = when (settings.themeMode) {
-                        ThemeMode.SYSTEM -> systemDark
-                        ThemeMode.LIGHT -> false
-                        ThemeMode.DARK -> true
-                    },
-                    onCheckedChange = { dark ->
-                        viewModel.setThemeMode(if (dark) ThemeMode.DARK else ThemeMode.LIGHT)
-                    },
-                )
+                IconButton(onClick = { showMoreMenu = true }) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.study_more))
+                }
+                DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.study_dark_menu)) },
+                        // Quick toggle kept inside the study flow; the source of
+                        // truth remains the settings page. Row 1 previously had
+                        // an inline "深色" Switch that permanently overrode the
+                        // system preference and crowded the bar.
+                        trailingContent = {
+                            Switch(
+                                checked = dark,
+                                onCheckedChange = { value ->
+                                    viewModel.setThemeMode(if (value) ThemeMode.DARK else ThemeMode.LIGHT)
+                                },
+                            )
+                        },
+                        onClick = {
+                            viewModel.setThemeMode(if (dark) ThemeMode.LIGHT else ThemeMode.DARK)
+                        },
+                    )
+                }
             }
 
             // Row 2: practice-type dropdown + Mode A/B switcher + favorite/note
@@ -259,13 +283,12 @@ fun StudyScreen(
                         ui = state.perQuestion[question.id] ?: QuestionUiState(),
                         multiTemp = state.multiTemp[question.id].orEmpty(),
                         onOptionTap = { value -> viewModel.onOptionTap(question, value) },
-                        onConfirmMulti = { viewModel.onConfirmMulti(question) },
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
             }
 
-            // Bottom bar: prev / answer-card / (submit) / next
+            // Bottom bar: prev / answer-card / spacer / (submit) / (confirm|next)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -278,16 +301,30 @@ fun StudyScreen(
                 TextButton(onClick = { showAnswerCard = true }) {
                     Text(stringResource(R.string.study_answer_card))
                 }
-                if (timed) {
-                    TextButton(onClick = { showSubmitDialog = true }) {
-                        Text(stringResource(R.string.study_submit))
-                    }
-                }
                 Spacer(Modifier.weight(1f))
+                // Submit is available in EVERY mode: untimed sessions used to
+                // stay ACTIVE forever (restore dialog kept reappearing).
+                TextButton(onClick = { showSubmitDialog = true }) {
+                    Text(stringResource(R.string.study_submit))
+                }
                 Button(
-                    onClick = { scope.launch { pagerState.animateScrollToPage(state.currentIndex + 1) } },
-                    enabled = state.currentIndex < questions.size - 1,
-                ) { Text(stringResource(R.string.study_next)) }
+                    onClick = {
+                        val question = currentQuestion
+                        when {
+                            multiPending && question != null ->
+                                viewModel.onConfirmMulti(question)
+                            else ->
+                                scope.launch { pagerState.animateScrollToPage(state.currentIndex + 1) }
+                        }
+                    },
+                    enabled = if (multiPending) true else state.currentIndex < questions.size - 1,
+                ) {
+                    Text(
+                        stringResource(
+                            if (multiPending) R.string.study_confirm_multi else R.string.study_next,
+                        ),
+                    )
+                }
             }
         }
 
@@ -306,22 +343,18 @@ fun StudyScreen(
         }
 
         DropdownMenu(expanded = showPracticeMenu, onDismissRequest = { showPracticeMenu = false }) {
+            // Only the two switchable types; the rest (专项/自定义/错题/收藏)
+            // need their own configuration and live on the practice sheet —
+            // permanently disabled menu items read as "broken".
             listOf(
                 PracticeType.SEQUENTIAL to false,
                 PracticeType.RANDOM to true,
-                PracticeType.CATEGORY to null,
-                PracticeType.CUSTOM to null,
-                PracticeType.WRONG_BOOK to null,
-                PracticeType.FAVORITE to null,
             ).forEach { (type, shuffle) ->
                 DropdownMenuItem(
                     text = { Text(practiceTypeLabel(type)) },
-                    enabled = shuffle != null,
                     onClick = {
                         showPracticeMenu = false
-                        if (shuffle != null) {
-                            pendingPracticeType = type
-                        }
+                        pendingPracticeType = type
                     },
                 )
             }
@@ -353,7 +386,18 @@ fun StudyScreen(
             AlertDialog(
                 onDismissRequest = { showSubmitDialog = false },
                 title = { Text(stringResource(R.string.study_submit_confirm_title)) },
-                text = { Text(stringResource(R.string.study_submit_confirm_text)) },
+                text = {
+                    Text(
+                        stringResource(
+                            if (ungradedCount > 0) {
+                                R.string.study_submit_incomplete_text
+                            } else {
+                                R.string.study_submit_confirm_text
+                            },
+                            ungradedCount,
+                        ),
+                    )
+                },
                 confirmButton = {
                     TextButton(onClick = {
                         showSubmitDialog = false

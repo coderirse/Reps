@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -23,9 +22,16 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.coderirse.reps.R
@@ -53,7 +59,6 @@ fun QuestionCard(
     ui: QuestionUiState,
     multiTemp: Set<String>,
     onOptionTap: (String) -> Unit,
-    onConfirmMulti: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dark = LocalRepsDarkTheme.current
@@ -61,6 +66,17 @@ fun QuestionCard(
     val successContainer = if (dark) Color(0xFF1B3A1F) else Color(0xFFC8E6C9)
     val wrongContainer = MaterialTheme.colorScheme.errorContainer
     val wrong = MaterialTheme.colorScheme.error
+
+    // Light haptic + once-per-grade guard: buzz only on the transition into
+    // graded state, not when swiping back to an already graded question.
+    val haptics = LocalHapticFeedback.current
+    var wasGraded by remember(question.id) { mutableStateOf(ui.graded) }
+    LaunchedEffect(ui.graded) {
+        if (ui.graded && !wasGraded) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+        wasGraded = ui.graded
+    }
 
     val options: List<Pair<String?, String>> = when (question.type) {
         QuestionType.JUDGE -> listOf(null to "对", null to "错")
@@ -155,12 +171,6 @@ fun QuestionCard(
             Spacer(Modifier.height(8.dp))
         }
 
-        if (question.type == QuestionType.MULTI && !ui.graded && multiTemp.isNotEmpty() && mode == ReciteMode.TEST) {
-            Button(onClick = onConfirmMulti, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.study_confirm_multi))
-            }
-        }
-
         Spacer(Modifier.height(8.dp))
         AnimatedVisibility(
             visible = ui.revealed,
@@ -173,6 +183,24 @@ fun QuestionCard(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Column(Modifier.padding(12.dp)) {
+                    if (ui.graded && ui.isCorrect != null) {
+                        Text(
+                            stringResource(
+                                if (ui.isCorrect) R.string.study_correct_tag else R.string.study_wrong_tag,
+                            ),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = if (ui.isCorrect) success else MaterialTheme.colorScheme.error,
+                        )
+                        if (!ui.isCorrect && ui.selectedAnswer != null) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                stringResource(R.string.study_your_answer_prefix, ui.selectedAnswer),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
                     Text(
                         stringResource(R.string.study_answer_label, question.correctAnswer),
                         style = MaterialTheme.typography.titleSmall,
