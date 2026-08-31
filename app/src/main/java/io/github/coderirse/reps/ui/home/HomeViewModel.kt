@@ -18,6 +18,7 @@ import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 class HomeViewModel(
@@ -28,6 +29,10 @@ class HomeViewModel(
 ) : ViewModel() {
 
     val subjects: Flow<List<SubjectEntity>> = db.subjectDao().observeAll()
+
+    /** subjectId -> distinct questions practiced; drives the card progress. */
+    val practicedCounts: Flow<Map<Long, Int>> = db.sessionAnswerDao().observePracticedCounts()
+        .map { rows -> rows.associate { it.subjectId to it.count } }
 
     /** All unfinished sessions; drives the startup restore dialog. */
     val activeSessions: Flow<List<StudySessionEntity>> = db.studySessionDao().observeActive()

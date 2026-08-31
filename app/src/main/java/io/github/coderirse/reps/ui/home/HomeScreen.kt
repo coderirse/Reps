@@ -24,6 +24,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -66,6 +67,7 @@ fun HomeScreen(
     val subjects by viewModel.subjects.collectAsStateWithLifecycle(initialValue = null)
     val activeSessions by viewModel.activeSessions.collectAsStateWithLifecycle(initialValue = null)
     val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = io.github.coderirse.reps.data.prefs.UserSettings.DEFAULT)
+    val practicedCounts by viewModel.practicedCounts.collectAsStateWithLifecycle(initialValue = emptyMap())
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var restoreDismissed by remember { mutableStateOf(false) }
@@ -117,6 +119,7 @@ fun HomeScreen(
             else -> SubjectList(
                 subjects = currentSubjects,
                 builtinSubjectId = settings.builtinSubjectId,
+                practicedCounts = practicedCounts,
                 onImportClick = { filePicker.launch(arrayOf("*/*")) },
                 onStartSession = onStartSession,
                 viewModel = viewModel,
@@ -206,6 +209,7 @@ private fun formatLastActive(epochMs: Long): String =
 private fun SubjectList(
     subjects: List<SubjectEntity>,
     builtinSubjectId: Long,
+    practicedCounts: Map<Long, Int>,
     onImportClick: () -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel,
@@ -241,6 +245,7 @@ private fun SubjectList(
                 SubjectCard(
                     subject = subject,
                     dateText = dateFormat.format(Date(subject.createdAt)),
+                    practiced = practicedCounts[subject.id] ?: 0,
                     onTap = { sheetSubject = subject },
                     // Built-in bank is app content: no delete entry.
                     deletable = subject.id != builtinSubjectId,
@@ -322,6 +327,7 @@ private fun SubjectList(
 private fun SubjectCard(
     subject: SubjectEntity,
     dateText: String,
+    practiced: Int,
     deletable: Boolean,
     onTap: () -> Unit,
     onDelete: () -> Unit,
@@ -341,6 +347,21 @@ private fun SubjectCard(
                     stringResource(R.string.subject_meta, subject.questionCount, dateText),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.subject_progress, practiced, subject.questionCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = {
+                        if (subject.questionCount <= 0) 0f else {
+                            (practiced.toFloat() / subject.questionCount).coerceIn(0f, 1f)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             if (deletable) {
