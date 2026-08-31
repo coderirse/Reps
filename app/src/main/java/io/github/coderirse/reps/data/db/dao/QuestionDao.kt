@@ -24,6 +24,9 @@ interface QuestionDao {
     @Query("SELECT * FROM questions WHERE subjectId = :subjectId ORDER BY orderIndex ASC")
     fun observeBySubject(subjectId: Long): Flow<List<QuestionEntity>>
 
+    @Query("SELECT * FROM questions WHERE subjectId = :subjectId ORDER BY orderIndex ASC")
+    suspend fun getForSubject(subjectId: Long): List<QuestionEntity>
+
     @Query("SELECT * FROM questions WHERE id = :id")
     suspend fun getById(id: Long): QuestionEntity?
 

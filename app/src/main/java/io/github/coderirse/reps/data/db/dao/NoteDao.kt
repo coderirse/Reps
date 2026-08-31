@@ -24,6 +24,12 @@ interface NoteDao {
     @Query("SELECT * FROM notes")
     suspend fun getAll(): List<NoteEntity>
 
+    @Query(
+        "SELECT n.* FROM notes n JOIN questions q ON q.id = n.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<NoteEntity>
+
     /** Blank notes are removed instead of upserted as empty rows. */
     @Query("DELETE FROM notes WHERE questionId = :questionId")
     suspend fun delete(questionId: Long)

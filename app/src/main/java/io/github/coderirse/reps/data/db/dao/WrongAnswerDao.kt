@@ -27,6 +27,12 @@ interface WrongAnswerDao {
     @Query("SELECT * FROM wrong_answers")
     suspend fun getAll(): List<WrongAnswerEntity>
 
+    @Query(
+        "SELECT w.* FROM wrong_answers w JOIN questions q ON q.id = w.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<WrongAnswerEntity>
+
     /** Backup import: matched by questionId primary key. */
     @Upsert
     suspend fun upsertAll(wrongAnswers: List<WrongAnswerEntity>)

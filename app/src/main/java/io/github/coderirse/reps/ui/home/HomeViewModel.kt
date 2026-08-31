@@ -5,13 +5,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.room.withTransaction
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.core.CustomOrder
 import io.github.coderirse.reps.core.CustomQuota
 import io.github.coderirse.reps.data.db.RepsDatabase
+import io.github.coderirse.reps.data.db.entity.FavoriteEntity
+import io.github.coderirse.reps.data.db.entity.NoteEntity
+import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import io.github.coderirse.reps.data.db.entity.QuestionType
-import io.github.coderirse.reps.data.db.entity.SubjectEntity
+import io.github.coderirse.reps.data.db.entity.SessionAnswerEntity
 import io.github.coderirse.reps.data.db.entity.StudySessionEntity
+import io.github.coderirse.reps.data.db.entity.SubjectEntity
+import io.github.coderirse.reps.data.db.entity.WrongAnswerEntity
 import io.github.coderirse.reps.data.prefs.SettingsRepository
 import io.github.coderirse.reps.data.repo.ImportRepository
 import io.github.coderirse.reps.data.repo.StudySessionRepository
@@ -21,6 +27,21 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * Everything an FK-cascading subject delete takes with it, kept in memory so
+ * the undo snackbar can put every row back with its original id.
+ */
+data class SubjectSnapshot(
+    val subject: SubjectEntity,
+    val questions: List<QuestionEntity>,
+    val sessions: List<StudySessionEntity>,
+    val answers: List<SessionAnswerEntity>,
+    val wrongs: List<WrongAnswerEntity>,
+    val favorites: List<FavoriteEntity>,
+    val notes: List<NoteEntity>,
+)
+
 class HomeViewModel(
     private val db: RepsDatabase,
     private val sessionRepository: StudySessionRepository,
@@ -64,8 +85,43 @@ class HomeViewModel(
         }
     }
 
-    fun deleteSubject(subjectId: Long) {
-        viewModelScope.launch(Dispatchers.IO) { db.subjectDao().deleteById(subjectId) }
+    /**
+     * Deleting a library is destructive: FK cascade also wipes its practice
+     * history, wrong-book rows, favorites and notes. Capture the whole
+     * subtree first, then delete — the caller can hand the snapshot to
+     * [restoreSubject] from the undo snackbar.
+     * @return the snapshot, or null if the subject was already gone.
+     */
+    suspend fun deleteSubject(subjectId: Long): SubjectSnapshot? = withContext(Dispatchers.IO) {
+        db.withTransaction {
+            val subject = db.subjectDao().getById(subjectId) ?: return@withTransaction null
+            val snapshot = SubjectSnapshot(
+                subject = subject,
+                questions = db.questionDao().getForSubject(subjectId),
+                sessions = db.studySessionDao().getForSubject(subjectId),
+                answers = db.sessionAnswerDao().getForSubject(subjectId),
+                wrongs = db.wrongAnswerDao().getForSubject(subjectId),
+                favorites = db.favoriteDao().getForSubject(subjectId),
+                notes = db.noteDao().getForSubject(subjectId),
+            )
+            db.subjectDao().deleteById(subjectId)
+            snapshot
+        }
+    }
+
+    /** Undo: re-insert every row parent-first, ids unchanged, in one transaction. */
+    fun restoreSubject(snapshot: SubjectSnapshot) {
+        viewModelScope.launch(Dispatchers.IO) {
+            db.withTransaction {
+                db.subjectDao().upsertAll(listOf(snapshot.subject))
+                db.questionDao().upsertAll(snapshot.questions)
+                db.studySessionDao().upsertAll(snapshot.sessions)
+                db.sessionAnswerDao().upsertAll(snapshot.answers)
+                db.wrongAnswerDao().upsertAll(snapshot.wrongs)
+                db.favoriteDao().upsertAll(snapshot.favorites)
+                db.noteDao().upsertAll(snapshot.notes)
+            }
+        }
     }
 
     /** Sessions idle beyond the 7-day window never resurface. */

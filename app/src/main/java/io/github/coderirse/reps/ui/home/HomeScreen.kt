@@ -28,6 +28,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -223,6 +225,9 @@ private fun SubjectList(
     var countsByType by remember { mutableStateOf(emptyMap<String, Int>()) }
     var resumeSession by remember { mutableStateOf<io.github.coderirse.reps.data.db.entity.StudySessionEntity?>(null) }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
+    val noQuestionsHint = stringResource(R.string.home_no_questions_hint)
 
     // Load sheet context data whenever a subject is tapped.
     LaunchedEffect(sheetSubject?.id) {
@@ -293,7 +298,7 @@ private fun SubjectList(
                     if (sessionId != null) {
                         onStartSession(sessionId)
                     } else {
-                        snackbarHostState.showSnackbar("该练习范围下没有可练的题目")
+                        snackbarHostState.showSnackbar(noQuestionsHint)
                     }
                 }
             },
@@ -309,9 +314,18 @@ private fun SubjectList(
             confirmButton = {
                 TextButton(onClick = {
                     val name = subject.name
-                    viewModel.deleteSubject(subject.id)
                     deleteCandidate = null
-                    scope.launch { snackbarHostState.showSnackbar("已删除「$name」") }
+                    scope.launch {
+                        val snapshot = viewModel.deleteSubject(subject.id) ?: return@launch
+                        val result = snackbarHostState.showSnackbar(
+                            message = context.getString(R.string.subject_deleted, name),
+                            actionLabel = undoLabel,
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.restoreSubject(snapshot)
+                        }
+                    }
                 }) { Text(stringResource(R.string.dialog_delete_confirm)) }
             },
             dismissButton = {
@@ -367,7 +381,10 @@ private fun SubjectCard(
             if (deletable) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = null)
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.nav_more),
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(

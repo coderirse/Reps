@@ -18,6 +18,12 @@ interface SessionAnswerDao {
     @Query("SELECT * FROM session_answers")
     suspend fun getAll(): List<SessionAnswerEntity>
 
+    @Query(
+        "SELECT sa.* FROM session_answers sa JOIN questions q ON q.id = sa.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<SessionAnswerEntity>
+
     @Upsert
     suspend fun upsertAll(answers: List<SessionAnswerEntity>)
 

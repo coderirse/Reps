@@ -22,6 +22,9 @@ interface StudySessionDao {
     @Query("SELECT * FROM study_sessions WHERE id = :id")
     suspend fun getById(id: Long): StudySessionEntity?
 
+    @Query("SELECT * FROM study_sessions WHERE subjectId = :subjectId")
+    suspend fun getForSubject(subjectId: Long): List<StudySessionEntity>
+
     @Query("SELECT * FROM study_sessions WHERE status = 0 ORDER BY lastActiveAt DESC")
     fun observeActive(): Flow<List<StudySessionEntity>>
 

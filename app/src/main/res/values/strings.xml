@@ -12,6 +12,10 @@
     <string name="home_empty_description">把老师发的题库 CSV 导进来，随时随地刷题背题</string>
     <string name="home_import_button">导入题库</string>
     <string name="home_import_coming_soon">题库导入将在下个阶段开放</string>
+    <string name="home_no_questions_hint">该练习范围下没有可练的题目</string>
+    <string name="nav_more">更多操作</string>
+    <string name="action_undo">撤销</string>
+    <string name="subject_deleted">已删除「%1$s」</string>
     <string name="subject_meta">%1$d 题 · 导入于 %2$s</string>
     <string name="subject_progress">已练 %1$d/%2$d</string>
 
@@ -25,7 +29,7 @@
 
     <string name="action_delete">删除</string>
     <string name="dialog_delete_subject_title">删除题库？</string>
-    <string name="dialog_delete_subject_text">将删除「%1$s」及其全部题目、刷题记录、错题与收藏，且无法恢复。</string>
+    <string name="dialog_delete_subject_text">将删除「%1$s」及其全部题目、刷题记录、错题与收藏；删除后可在提示条上短暂撤销。</string>
     <string name="dialog_delete_confirm">删除</string>
 
     <!-- Practice picker sheet -->
@@ -101,6 +105,7 @@
     <string name="import_parsing">正在解析…</string>
     <string name="import_writing">正在写入…</string>
     <string name="import_stats">可导入 %1$d 题 · 共 %2$d 行 · 跳过不支持 %3$d 题</string>
+    <string name="import_image_hint">注意：其中 %1$d 道题含图片引用，暂不支持导入图片，这些题导入后仅显示文字。</string>
     <string name="import_errors_title">解析问题（%1$d）</string>
     <string name="import_success">已导入 %1$d 题</string>
     <string name="import_file_error">无法读取所选文件</string>
