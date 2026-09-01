@@ -138,4 +138,29 @@ class CsvQuestionParserTest {
         assertEquals(5, result.questions.size)
         assertEquals(2, result.preview.size)
     }
+
+    @Test
+    fun `utf8 bom before header is tolerated`() {
+        // Excel's default UTF-8 export carries a BOM; String(bytes, charset)
+        // does not consume it, so the parser must.
+        val csv = "\uFEFF" + header + "\n1,题干,single,甲,乙,,,,A,,,"
+        val result = parser.parse(csv)
+        assertNull(result.headerError)
+        assertEquals(1, result.questions.size)
+        assertEquals("题干", result.questions[0].content)
+    }
+
+    @Test
+    fun `error line numbers account for blank rows`() {
+        val csv = buildString {
+            appendLine(header)
+            appendLine("1,第一题,single,甲,乙,,,,A,,,")
+            appendLine("")
+            appendLine("2,,single,甲,乙,,,,A,,,") // blank content at file row 4
+        }
+        val result = parser.parse(csv)
+        assertEquals(1, result.questions.size)
+        assertEquals(1, result.errors.size)
+        assertEquals(4, result.errors[0].lineNo)
+    }
 }

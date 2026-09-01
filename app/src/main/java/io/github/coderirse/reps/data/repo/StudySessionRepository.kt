@@ -36,29 +36,34 @@ class StudySessionRepository(private val db: RepsDatabase) {
         check(baseQuestionIds.isNotEmpty()) { "No questions to practice" }
         val seed = System.nanoTime()
         val orderedIds = if (shuffle) Shuffle.shuffled(baseQuestionIds, seed) else baseQuestionIds
-        db.studySessionDao().completeActiveForSubject(subjectId)
-        db.studySessionDao().upsert(
-            StudySessionEntity(
-                subjectId = subjectId,
-                practiceType = practiceType,
-                filterValue = filterValue,
-                reciteMode = reciteMode,
-                questionIds = orderedIds.joinToString(","),
-                currentIndex = 0,
-                selectedAnswer = null,
-                answerRevealed = false,
-                randomSeed = seed,
-                deadlineAt = if (deadlineMinutes > 0) {
-                    System.currentTimeMillis() + deadlineMinutes * 60_000L
-                } else {
-                    0L
-                },
-                startedAt = System.currentTimeMillis(),
-                lastActiveAt = System.currentTimeMillis(),
-                accumulatedMs = 0,
-                status = io.github.coderirse.reps.data.db.entity.SessionStatus.ACTIVE,
-            ),
-        )
+        // Complete-then-insert must be atomic: a failure in between would leave
+        // the old session completed with no new one, and concurrent callers
+        // could both pass the check and create two ACTIVE sessions.
+        db.withTransaction {
+            db.studySessionDao().completeActiveForSubject(subjectId)
+            db.studySessionDao().upsert(
+                StudySessionEntity(
+                    subjectId = subjectId,
+                    practiceType = practiceType,
+                    filterValue = filterValue,
+                    reciteMode = reciteMode,
+                    questionIds = orderedIds.joinToString(","),
+                    currentIndex = 0,
+                    selectedAnswer = null,
+                    answerRevealed = false,
+                    randomSeed = seed,
+                    deadlineAt = if (deadlineMinutes > 0) {
+                        System.currentTimeMillis() + deadlineMinutes * 60_000L
+                    } else {
+                        0L
+                    },
+                    startedAt = System.currentTimeMillis(),
+                    lastActiveAt = System.currentTimeMillis(),
+                    accumulatedMs = 0,
+                    status = io.github.coderirse.reps.data.db.entity.SessionStatus.ACTIVE,
+                ),
+            )
+        }
     }
 
     /** CUSTOM paper: per-type quotas, sequential take or seeded sampling. */
@@ -76,29 +81,31 @@ class StudySessionRepository(private val db: RepsDatabase) {
         )
         val seed = System.nanoTime()
         val pickedIds = PaperBuilder.pickIds(pools, quota, order, seed)
-        db.studySessionDao().completeActiveForSubject(subjectId)
-        db.studySessionDao().upsert(
-            StudySessionEntity(
-                subjectId = subjectId,
-                practiceType = io.github.coderirse.reps.data.db.entity.PracticeType.CUSTOM,
-                filterValue = null,
-                reciteMode = reciteMode,
-                questionIds = pickedIds.joinToString(","),
-                currentIndex = 0,
-                selectedAnswer = null,
-                answerRevealed = false,
-                randomSeed = seed,
-                deadlineAt = if (deadlineMinutes > 0) {
-                    System.currentTimeMillis() + deadlineMinutes * 60_000L
-                } else {
-                    0L
-                },
-                startedAt = System.currentTimeMillis(),
-                lastActiveAt = System.currentTimeMillis(),
-                accumulatedMs = 0,
-                status = io.github.coderirse.reps.data.db.entity.SessionStatus.ACTIVE,
-            ),
-        )
+        return@withContext db.withTransaction {
+            db.studySessionDao().completeActiveForSubject(subjectId)
+            db.studySessionDao().upsert(
+                StudySessionEntity(
+                    subjectId = subjectId,
+                    practiceType = io.github.coderirse.reps.data.db.entity.PracticeType.CUSTOM,
+                    filterValue = null,
+                    reciteMode = reciteMode,
+                    questionIds = pickedIds.joinToString(","),
+                    currentIndex = 0,
+                    selectedAnswer = null,
+                    answerRevealed = false,
+                    randomSeed = seed,
+                    deadlineAt = if (deadlineMinutes > 0) {
+                        System.currentTimeMillis() + deadlineMinutes * 60_000L
+                    } else {
+                        0L
+                    },
+                    startedAt = System.currentTimeMillis(),
+                    lastActiveAt = System.currentTimeMillis(),
+                    accumulatedMs = 0,
+                    status = io.github.coderirse.reps.data.db.entity.SessionStatus.ACTIVE,
+                ),
+            )
+        }
     }
 
     suspend fun getSession(id: Long): StudySessionEntity? =
@@ -138,8 +145,14 @@ class StudySessionRepository(private val db: RepsDatabase) {
         val correct = Grading.isCorrect(question, selectedRaw)
         val now = System.currentTimeMillis()
         db.withTransaction {
+            // @Upsert falls back to UPDATE by primary key on conflict; our rows
+            // always insert with id = 0, so a conflicting (sessionId, questionId)
+            // row would make the update match nothing and silently drop the
+            // answer. Pre-read and carry the existing id instead.
+            val existing = db.sessionAnswerDao().getForQuestion(session.id, question.id)
             db.sessionAnswerDao().upsert(
                 SessionAnswerEntity(
+                    id = existing?.id ?: 0,
                     sessionId = session.id,
                     questionId = question.id,
                     actionType = AnswerActionType.SELECTED,
@@ -165,7 +178,7 @@ class StudySessionRepository(private val db: RepsDatabase) {
     suspend fun recordBrowsed(session: StudySessionEntity, questionId: Long) =
         withContext(Dispatchers.IO) {
             val existing = db.sessionAnswerDao().getForQuestion(session.id, questionId)
-            if (existing == null || existing.actionType != AnswerActionType.SELECTED) {
+            if (existing == null) {
                 db.sessionAnswerDao().upsert(
                     SessionAnswerEntity(
                         sessionId = session.id,
@@ -176,6 +189,10 @@ class StudySessionRepository(private val db: RepsDatabase) {
                         answeredAt = System.currentTimeMillis(),
                         dwellMs = null,
                     ),
+                )
+            } else if (existing.actionType != AnswerActionType.SELECTED) {
+                db.sessionAnswerDao().upsert(
+                    existing.copy(answeredAt = System.currentTimeMillis()),
                 )
             }
         }

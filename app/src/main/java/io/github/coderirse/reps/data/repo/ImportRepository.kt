@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.room.withTransaction
+import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.csv.CsvQuestionParser
 import io.github.coderirse.reps.data.csv.CsvParseResult
 import io.github.coderirse.reps.data.csv.EncodingDetector
@@ -23,13 +24,13 @@ class ImportRepository(
 
     suspend fun readAndParse(uri: Uri): CsvParseResult = withContext(Dispatchers.IO) {
         val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: return@withContext CsvParseResult(headerError = "无法读取所选文件")
+            ?: return@withContext CsvParseResult(headerError = context.getString(R.string.import_error_read_file))
         parseBytes(bytes)
     }
 
     private fun parseBytes(bytes: ByteArray): CsvParseResult {
         val charset = EncodingDetector.detect(bytes, EncodingDetector::icuCrossCheck)
-            ?: return CsvParseResult(headerError = "无法识别文件编码，请将文件另存为 UTF-8 后重试")
+            ?: return CsvParseResult(headerError = context.getString(R.string.import_error_encoding))
         return parser.parse(String(bytes, charset))
     }
 
@@ -59,7 +60,7 @@ class ImportRepository(
                     null
                 }
             }
-        }.getOrNull() ?: "导入的题库"
+        }.getOrNull() ?: context.getString(R.string.import_default_subject_name)
     }
 
     /**

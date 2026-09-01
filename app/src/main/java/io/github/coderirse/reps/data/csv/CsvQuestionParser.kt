@@ -49,7 +49,9 @@ data class CsvParseResult(
 class CsvQuestionParser(private val maxPreview: Int = 50) {
 
     fun parse(text: String): CsvParseResult {
-        val rows = parseCsvRows(text)
+        // Excel exports default to UTF-8 with BOM; String(bytes, charset) does
+        // not consume it, so the first header cell would be "\uFEFFcontent".
+        val rows = parseCsvRows(text.removePrefix("\uFEFF"))
 
         if (rows.isEmpty()) {
             return CsvParseResult(headerError = "文件为空")
@@ -66,9 +68,11 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
         val errors = mutableListOf<RowError>()
         val seenIds = mutableSetOf<Int>()
         var skippedUnsupported = 0
-        val dataRows = rows.drop(1).filter { row -> row.any { it.isNotBlank() } }
+        // Keep the original row index through the blank-row filter so error
+        // line numbers match what the user sees in their editor.
+        val dataRows = rows.drop(1).withIndex().filter { (_, row) -> row.any { it.isNotBlank() } }
 
-        dataRows.forEachIndexed { rowIndex, cells ->
+        dataRows.forEach { (rowIndex, cells) ->
             val lineNo = rowIndex + 2 // 1-based, header is row 1
             fun cell(name: String): String? =
                 index[name]?.let { cells.getOrNull(it) }?.trim()?.ifEmpty { null }
@@ -78,12 +82,12 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
             val type = cell(COL_TYPE)?.lowercase() ?: ""
             if (type !in SUPPORTED_TYPES) {
                 if (type.isNotEmpty()) skippedUnsupported++
-                return@forEachIndexed
+                return@forEach
             }
             val content = cell(COL_CONTENT)
             if (content.isNullOrBlank()) {
                 fail("第 $lineNo 行：题干为空")
-                return@forEachIndexed
+                return@forEach
             }
 
             val options = listOf(
@@ -98,7 +102,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     val normalized = rawAnswer?.let { Grading.normalizeJudge(it) }
                     if (normalized != "对" && normalized != "错") {
                         fail("第 $lineNo 行：判断题答案必须是 对/错（收到「$rawAnswer」）")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     normalized
                 }
@@ -106,11 +110,11 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     val letter = rawAnswer?.uppercase()?.singleOrNull()
                     if (letter == null || letter !in 'A'..'F') {
                         fail("第 $lineNo 行：单选答案必须是 A-F 之一（收到「$rawAnswer」）")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     if (optionOf(letter).isNullOrBlank()) {
                         fail("第 $lineNo 行：答案 $letter 对应的选项为空")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     letter.toString()
                 }
@@ -122,23 +126,23 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                     val invalidLetters = upper.filter { it.isLetter() && it !in 'A'..'F' }.toSet()
                     if (invalidLetters.isNotEmpty()) {
                         fail("第 $lineNo 行：答案包含无效选项字母 ${invalidLetters.joinToString("、")}（收到「$rawAnswer」）")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     val letters = upper.filter { it in 'A'..'F' }.toSet().map { it.toString() }.sorted()
                     if (letters.size < 2) {
                         fail("第 $lineNo 行：多选答案至少需要两个不同选项（收到「$rawAnswer」）")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     val missingOption = letters.firstOrNull { optionOf(it[0]).isNullOrBlank() }
                     if (missingOption != null) {
                         fail("第 $lineNo 行：答案 $missingOption 对应的选项为空")
-                        return@forEachIndexed
+                        return@forEach
                     }
                     letters.joinToString(",")
                 }
                 else -> {
                     skippedUnsupported++
-                    return@forEachIndexed
+                    return@forEach
                 }
             }
 
@@ -149,7 +153,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
                 val parsed = rawId.toIntOrNull()
                 if (parsed == null || parsed < 1) {
                     fail("第 $lineNo 行：题号必须是正整数（收到「$rawId」）")
-                    return@forEachIndexed
+                    return@forEach
                 }
                 parsed
             } else {
@@ -157,7 +161,7 @@ class CsvQuestionParser(private val maxPreview: Int = 50) {
             }
             if (!seenIds.add(orderIndex)) {
                 fail("第 $lineNo 行：题号 $orderIndex 重复")
-                return@forEachIndexed
+                return@forEach
             }
 
             questions += ParsedQuestion(
