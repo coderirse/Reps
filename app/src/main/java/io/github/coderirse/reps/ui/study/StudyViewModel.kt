@@ -15,15 +15,11 @@ import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.data.db.entity.SessionStatus
 import io.github.coderirse.reps.data.db.entity.StudySessionEntity
-import io.github.coderirse.reps.data.prefs.SettingsRepository
-import io.github.coderirse.reps.data.prefs.ThemeMode
-import io.github.coderirse.reps.data.prefs.UserSettings
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -44,7 +40,7 @@ data class QuestionUiState(
 
 data class StudyUiState(
     val loading: Boolean = true,
-    val loadError: String? = null,
+    val loadError: Boolean = false,
     val subjectName: String = "",
     val practiceType: String = "",
     val questions: List<QuestionEntity> = emptyList(),
@@ -62,7 +58,6 @@ data class StudyUiState(
 class StudyViewModel(
     private val sessionId: Long,
     private val sessionRepository: StudySessionRepository,
-    private val settingsRepository: SettingsRepository,
     private val db: RepsDatabase,
     /** Survives ViewModel teardown; used for the ON_STOP fallback save. */
     private val externalScope: CoroutineScope,
@@ -73,6 +68,7 @@ class StudyViewModel(
     private var accumulatedMs: Long = 0L
     private var lastTickAt: Long = 0L
     private var ticker: Job? = null
+    private var periodicSave: Job? = null
 
     /**
      * Questions with a grade write in flight. Checked and filled synchronously
@@ -84,8 +80,6 @@ class StudyViewModel(
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state
 
-    val settings: Flow<UserSettings> = settingsRepository.settings
-
     init {
         viewModelScope.launch { load() }
     }
@@ -93,7 +87,7 @@ class StudyViewModel(
     private suspend fun load() {
         val loaded = sessionRepository.getSession(sessionId)
         if (loaded == null) {
-            _state.update { it.copy(loading = false, loadError = "会话不存在") }
+            _state.update { it.copy(loading = false, loadError = true) }
             return
         }
         if (loaded.status != SessionStatus.ACTIVE) {
@@ -163,10 +157,13 @@ class StudyViewModel(
 
     /**
      * Periodic silent save (docs section 5.2): refreshes lastActiveAt, accrues
-     * study time and flushes the current position every 5 seconds.
+     * study time and flushes the current position every 5 seconds. Only runs
+     * while the screen is RESUMED; ON_STOP cancels it via [saveNow] and
+     * ON_RESUME restarts it via [onResume], so background time never accrues.
      */
     private fun startPeriodicSave() {
-        viewModelScope.launch {
+        periodicSave?.cancel()
+        periodicSave = viewModelScope.launch {
             while (isActive) {
                 delay(5_000)
                 val s = session ?: break
@@ -179,18 +176,30 @@ class StudyViewModel(
         }
     }
 
-    /** ON_STOP fallback: runs on the application scope, survives teardown. */
+    /** ON_STOP: final flush, then stop both loops so nothing ticks in background. */
     fun saveNow() {
         val s = session ?: return
+        periodicSave?.cancel()
+        periodicSave = null
+        ticker?.cancel()
+        ticker = null
         val now = System.currentTimeMillis()
         accumulatedMs += now - lastTickAt
         lastTickAt = now
         persistCurrentState(accumulatedMs = accumulatedMs, scope = externalScope)
     }
 
-    /** ON_RESUME: pause time accrual while backgrounded. */
+    /** ON_RESUME: restart accrual; a deadline passed while away submits at once. */
     fun onResume() {
+        val s = session ?: return
+        if (_state.value.sessionCompleted) return
         lastTickAt = System.currentTimeMillis()
+        if (s.deadlineAt > 0 && System.currentTimeMillis() >= s.deadlineAt) {
+            submit()
+            return
+        }
+        startTicker()
+        startPeriodicSave()
     }
 
     private fun persistCurrentState(accumulatedMs: Long, scope: CoroutineScope) {
@@ -339,10 +348,6 @@ class StudyViewModel(
         }
     }
 
-    fun setThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
-    }
-
     fun toggleFavorite(questionId: Long) {
         val current = _state.value
         val nowFavorite = questionId !in current.favorites
@@ -394,10 +399,13 @@ class StudyViewModel(
 
     fun submit() {
         val s = session ?: return
+        // Check-and-set synchronously: the deadline ticker and the submit
+        // button can both fire before the coroutine below runs.
+        if (_state.value.sessionCompleted) return
+        _state.update { it.copy(sessionCompleted = true) }
         viewModelScope.launch {
             persistCurrentStateSync()
             sessionRepository.markCompleted(s.id)
-            _state.update { it.copy(sessionCompleted = true) }
         }
     }
 
@@ -439,7 +447,6 @@ class StudyViewModel(
                 StudyViewModel(
                     sessionId = sessionId,
                     sessionRepository = app.studySessionRepository,
-                    settingsRepository = app.settingsRepository,
                     db = app.database,
                     externalScope = app.applicationScope,
                 )
