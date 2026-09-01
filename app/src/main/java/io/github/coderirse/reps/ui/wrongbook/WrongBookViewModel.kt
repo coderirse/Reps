@@ -7,6 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.data.db.RepsDatabase
+import io.github.coderirse.reps.data.db.entity.PracticeType
+import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -53,15 +55,26 @@ class WrongBookViewModel(
         }
     }
 
+    /** Re-entry guard against double taps: a second call returns null. */
+    private var starting = false
+
     /** 重练本题: a one-question session, so the user can drill a single wrong. */
-    suspend fun startSingleQuestionPractice(questionId: Long): Long? = withContext(Dispatchers.IO) {
-        val question = db.questionDao().getById(questionId) ?: return@withContext null
-        sessionRepository.createSession(
-            subjectId = question.subjectId,
-            practiceType = io.github.coderirse.reps.data.db.entity.PracticeType.WRONG_BOOK,
-            reciteMode = io.github.coderirse.reps.data.db.entity.ReciteMode.TEST,
-            baseQuestionIds = listOf(questionId),
-        )
+    suspend fun startSingleQuestionPractice(questionId: Long): Long? {
+        if (starting) return null
+        starting = true
+        return try {
+            withContext(Dispatchers.IO) {
+                val question = db.questionDao().getById(questionId) ?: return@withContext null
+                sessionRepository.createSession(
+                    subjectId = question.subjectId,
+                    practiceType = PracticeType.WRONG_BOOK,
+                    reciteMode = ReciteMode.TEST,
+                    baseQuestionIds = listOf(questionId),
+                )
+            }
+        } finally {
+            starting = false
+        }
     }
 
     /**
@@ -69,15 +82,26 @@ class WrongBookViewModel(
      * subject; the UI asks the user to pick a subject when multiple exist).
      * @return session id, or null when the subject has no unmastered wrongs
      */
-    suspend fun startPractice(subjectId: Long): Long? = withContext(Dispatchers.IO) {
-        val ids = db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
-        if (ids.isEmpty()) return@withContext null
-        sessionRepository.createSession(
-            subjectId = subjectId,
-            practiceType = "wrong_book",
-            reciteMode = "mode_b_test",
-            baseQuestionIds = ids,
-        )
+    suspend fun startPractice(subjectId: Long): Long? {
+        if (starting) return null
+        starting = true
+        return try {
+            withContext(Dispatchers.IO) {
+                val ids = db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
+                if (ids.isEmpty()) {
+                    null
+                } else {
+                    sessionRepository.createSession(
+                        subjectId = subjectId,
+                        practiceType = PracticeType.WRONG_BOOK,
+                        reciteMode = ReciteMode.TEST,
+                        baseQuestionIds = ids,
+                    )
+                }
+            }
+        } finally {
+            starting = false
+        }
     }
 
     suspend fun getSubjectName(subjectId: Long): String = withContext(Dispatchers.IO) {

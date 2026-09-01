@@ -1,20 +1,20 @@
 package io.github.coderirse.reps.ui.import
 
+import android.content.Context
 import android.net.Uri
-import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.coderirse.reps.R
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.data.csv.CsvParseResult
 import io.github.coderirse.reps.data.repo.ImportRepository
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 sealed interface ImportUiState {
     data object Loading : ImportUiState
@@ -26,7 +26,7 @@ sealed interface ImportUiState {
 
 class ImportPreviewViewModel(
     private val uri: Uri,
-    savedStateHandle: SavedStateHandle,
+    private val appContext: Context,
     private val importRepository: ImportRepository,
 ) : ViewModel() {
 
@@ -46,7 +46,8 @@ class ImportPreviewViewModel(
                 subjectName = name
                 _state.value = ImportUiState.Ready(result, name)
             } catch (t: Throwable) {
-                _state.value = ImportUiState.Failed(t.message ?: "解析失败")
+                if (t is CancellationException) throw t
+                _state.value = ImportUiState.Failed(t.message ?: appContext.getString(R.string.import_parse_failed))
             }
         }
     }
@@ -56,14 +57,18 @@ class ImportPreviewViewModel(
     }
 
     fun confirm() {
+        // Re-entry guard: a fast double tap would otherwise launch two import
+        // coroutines and produce two duplicate libraries.
+        if (_state.value is ImportUiState.Writing || _state.value is ImportUiState.Done) return
         val result = parsed ?: return
         _state.value = ImportUiState.Writing
         viewModelScope.launch {
             try {
-                val subjectId = importRepository.import(subjectName.ifBlank { "导入的题库" }, result)
+                val subjectId = importRepository.import(subjectName.ifBlank { appContext.getString(R.string.import_default_subject_name) }, result)
                 _state.value = ImportUiState.Done(subjectId, result.questions.size)
             } catch (t: Throwable) {
-                _state.value = ImportUiState.Failed(t.message ?: "写入失败")
+                if (t is CancellationException) throw t
+                _state.value = ImportUiState.Failed(t.message ?: appContext.getString(R.string.import_write_failed))
             }
         }
     }
@@ -76,7 +81,7 @@ class ImportPreviewViewModel(
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as RepsApplication
                 ImportPreviewViewModel(
                     uri = uri,
-                    savedStateHandle = SavedStateHandle(),
+                    appContext = app,
                     importRepository = app.importRepository,
                 )
             }

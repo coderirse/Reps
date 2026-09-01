@@ -30,6 +30,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -60,9 +61,9 @@ import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.ui.components.AssetImage
 import io.github.coderirse.reps.ui.components.EmptyState
 import io.github.coderirse.reps.ui.import.typeLabel
-import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
-import io.github.coderirse.reps.ui.theme.SuccessDark
-import io.github.coderirse.reps.ui.theme.SuccessLight
+import io.github.coderirse.reps.ui.theme.onSuccessContainerColor
+import io.github.coderirse.reps.ui.theme.successColor
+import io.github.coderirse.reps.ui.theme.successContainerColor
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -281,7 +282,7 @@ fun WrongBookScreen(
             wrongCount = row.wrongCount,
             lastWrongText = dateFormat.format(Date(row.lastWrongAt)),
             mastered = row.mastered,
-            initialNote = detailNote.orEmpty(),
+            initialNote = detailNote,
             onSaveNote = { viewModel.saveNote(row.question.id, it) },
             onToggleMastered = {
                 viewModel.setMastered(row.question.id, !row.mastered)
@@ -299,7 +300,9 @@ fun WrongBookScreen(
 @Composable
 private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.clickable(onClick = onClick),
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
                 MaterialTheme.colorScheme.primaryContainer
@@ -394,19 +397,23 @@ private fun WrongQuestionDetailSheet(
     wrongCount: Int,
     lastWrongText: String,
     mastered: Boolean,
-    initialNote: String,
+    /** null while the note is still loading; the editor renders only when loaded. */
+    initialNote: String?,
     onSaveNote: (String) -> Unit,
     onToggleMastered: () -> Unit,
     onPracticeThis: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val dark = LocalRepsDarkTheme.current
-    val success = if (dark) SuccessDark else SuccessLight
-    val successContainer = if (dark) Color(0xFF1B3A1F) else Color(0xFFC8E6C9)
-    var note by remember(question.id) { mutableStateOf(initialNote) }
+    val success = successColor()
+    val successContainer = successContainerColor()
+    val onSuccessContainer = onSuccessContainerColor()
 
     val options: List<Pair<String?, String>> = when (question.type) {
-        QuestionType.JUDGE -> listOf(null to "对", null to "错")
+        // Judge labels double as stored answer values (see judge_option_true).
+        QuestionType.JUDGE -> listOf(
+            null to stringResource(R.string.judge_option_true),
+            null to stringResource(R.string.judge_option_false),
+        )
         else -> listOfNotNull(
             question.optionA?.let { "A" to it },
             question.optionB?.let { "B" to it },
@@ -470,7 +477,7 @@ private fun WrongQuestionDetailSheet(
             Text(question.content, style = MaterialTheme.typography.titleMedium)
             question.imageFile?.let { path ->
                 Spacer(Modifier.height(12.dp))
-                AssetImage(assetPath = path, contentDescription = null)
+                AssetImage(assetPath = path)
             }
             Spacer(Modifier.height(12.dp))
 
@@ -482,7 +489,7 @@ private fun WrongQuestionDetailSheet(
                     text = text,
                     containerColor = if (isCorrect) successContainer else MaterialTheme.colorScheme.surfaceContainerLow,
                     contentColor = if (isCorrect) {
-                        if (dark) Color(0xFFB9F6CA) else Color(0xFF1B5E20)
+                        onSuccessContainer
                     } else {
                         MaterialTheme.colorScheme.onSurface
                     },
@@ -513,16 +520,22 @@ private fun WrongQuestionDetailSheet(
             }
 
             Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text(stringResource(R.string.study_note)) },
-                minLines = 2,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = { onSaveNote(note) }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.study_note_save))
+            // Gate on the async load: initializing the field with "" before the
+            // real note arrives would show an empty editor, and saving then
+            // silently deleted the existing note (review H4).
+            initialNote?.let { loadedNote ->
+                var note by remember(question.id) { mutableStateOf(loadedNote) }
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    label = { Text(stringResource(R.string.study_note)) },
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { onSaveNote(note) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.study_note_save))
+                }
             }
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
