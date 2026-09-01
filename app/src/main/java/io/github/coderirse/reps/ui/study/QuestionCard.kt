@@ -39,9 +39,9 @@ import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.ui.import.typeLabel
-import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
-import io.github.coderirse.reps.ui.theme.SuccessDark
-import io.github.coderirse.reps.ui.theme.SuccessLight
+import io.github.coderirse.reps.ui.theme.onSuccessContainerColor
+import io.github.coderirse.reps.ui.theme.successColor
+import io.github.coderirse.reps.ui.theme.successContainerColor
 
 private data class OptionVisual(
     val value: String,
@@ -61,9 +61,9 @@ fun QuestionCard(
     onOptionTap: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dark = LocalRepsDarkTheme.current
-    val success = if (dark) SuccessDark else SuccessLight
-    val successContainer = if (dark) Color(0xFF1B3A1F) else Color(0xFFC8E6C9)
+    val success = successColor()
+    val onSuccessContainer = onSuccessContainerColor()
+    val successContainer = successContainerColor()
     val wrongContainer = MaterialTheme.colorScheme.errorContainer
     val wrong = MaterialTheme.colorScheme.error
 
@@ -79,7 +79,12 @@ fun QuestionCard(
     }
 
     val options: List<Pair<String?, String>> = when (question.type) {
-        QuestionType.JUDGE -> listOf(null to "对", null to "错")
+        // Judge labels double as stored answer values; the resources must
+        // stay identical to Grading.normalizeJudge output.
+        QuestionType.JUDGE -> listOf(
+            null to stringResource(R.string.judge_option_true),
+            null to stringResource(R.string.judge_option_false),
+        )
         else -> listOfNotNull(
             question.optionA?.let { "A" to it },
             question.optionB?.let { "B" to it },
@@ -124,10 +129,7 @@ fun QuestionCard(
         Text(question.content, style = MaterialTheme.typography.titleMedium)
         question.imageFile?.let { path ->
             Spacer(Modifier.height(12.dp))
-            io.github.coderirse.reps.ui.components.AssetImage(
-                assetPath = path,
-                contentDescription = null,
-            )
+            io.github.coderirse.reps.ui.components.AssetImage(assetPath = path)
         }
         Spacer(Modifier.height(16.dp))
 
@@ -137,7 +139,7 @@ fun QuestionCard(
             val isSelected = value in selectedLetters || (letter != null && letter in selectedLetters)
             val visual = when {
                 ui.graded && isCorrectOption -> OptionVisual(
-                    value, letter, successContainer, Color(0xFF1B5E20).takeIf { !dark } ?: Color(0xFFB9F6CA),
+                    value, letter, successContainer, onSuccessContainer,
                     clickable = false, checked = isSelected,
                 )
                 ui.graded && isSelected -> OptionVisual(

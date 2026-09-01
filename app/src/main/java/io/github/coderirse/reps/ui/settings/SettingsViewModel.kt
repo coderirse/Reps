@@ -1,11 +1,13 @@
 package io.github.coderirse.reps.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import io.github.coderirse.reps.R
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.data.backup.BackupFormatException
 import io.github.coderirse.reps.data.backup.BackupRepository
@@ -30,6 +32,7 @@ sealed interface BackupEvent {
 }
 
 class SettingsViewModel(
+    private val appContext: Context,
     private val settingsRepository: SettingsRepository,
     private val database: RepsDatabase,
     private val backupRepository: BackupRepository,
@@ -82,9 +85,9 @@ class SettingsViewModel(
                 .onSuccess { stats -> _backupEvent.update { BackupEvent.Done(stats, imported) } }
                 .onFailure { error ->
                     val message = if (error is BackupFormatException) {
-                        error.message ?: "备份文件无法处理"
+                        error.message ?: appContext.getString(R.string.backup_error_unprocessable)
                     } else {
-                        "操作失败：${error.message ?: error.javaClass.simpleName}"
+                        appContext.getString(R.string.backup_error_generic, error.message ?: error.javaClass.simpleName)
                     }
                     _backupEvent.update { BackupEvent.Failed(message) }
                 }
@@ -97,7 +100,7 @@ class SettingsViewModel(
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
                     as RepsApplication
-                SettingsViewModel(app.settingsRepository, app.database, app.backupRepository)
+                SettingsViewModel(app, app.settingsRepository, app.database, app.backupRepository)
             }
         }
     }

@@ -48,8 +48,8 @@
     <string name="order_sequential">顺序</string>
     <string name="order_random">随机</string>
     <string name="recite_mode">背题模式</string>
-    <string name="mode_a_label">模式A · 浏览</string>
-    <string name="mode_b_label">模式B · 检验</string>
+    <string name="mode_a_label">背题 · 直接看答案</string>
+    <string name="mode_b_label">答题 · 先作答后判分</string>
     <string name="action_start">开始练习</string>
     <string name="action_back">返回</string>
     <string name="quota_single">单选题</string>
@@ -60,7 +60,7 @@
     <string name="timer_minutes_hint">倒计时（分钟）</string>
     <string name="timer_minutes_value">%1$d 分钟</string>
     <string name="timer_off">不限时</string>
-    <string name="timer_forces_mode_b">开启倒计时时使用模式 B（检验背题）</string>
+    <string name="timer_forces_mode_b">开启倒计时时使用答题模式（先作答后判分）</string>
     <string name="practice_switch_title">切换练习方式？</string>
     <string name="practice_switch_text">将结束当前练习并开始一轮新的练习。</string>
 
@@ -91,6 +91,7 @@
     <string name="wrong_book_tab_unmastered">未掌握</string>
     <string name="wrong_book_tab_mastered">已掌握（%1$d）</string>
     <string name="favorites_start_practice">开始收藏练习</string>
+    <string name="favorites_pick_subject_hint">收藏跨多个题库，请先在上方选择一个题库</string>
 
     <!-- Study additions -->
     <string name="study_favorite">收藏</string>
@@ -115,10 +116,9 @@
     <string name="study_prev">上一题</string>
     <string name="study_next">下一题</string>
     <string name="study_answer_card">答题卡</string>
-    <string name="study_mode_a">模式A</string>
-    <string name="study_mode_b">模式B</string>
+    <string name="study_mode_a">背题</string>
+    <string name="study_mode_b">答题</string>
     <string name="study_more">更多选项</string>
-    <string name="study_dark_menu">深色模式</string>
     <string name="study_answer_label">正确答案：%1$s</string>
     <string name="study_no_explanation">暂无解析</string>
     <string name="study_explanation_label">解析</string>
@@ -188,4 +188,33 @@
     <string name="about_repo">GitHub 仓库</string>
     <string name="about_repo_url">https://github.com/coderirse/Reps</string>
     <string name="about_copyright">© 2026 coderirse · MIT License</string>
+
+    <!-- Import / backup messages -->
+    <string name="import_done_message">已导入 %1$d 题</string>
+    <string name="import_parse_failed">解析失败</string>
+    <string name="import_write_failed">写入失败</string>
+    <string name="import_default_subject_name">导入的题库</string>
+    <string name="import_error_read_file">无法读取所选文件</string>
+    <string name="import_error_encoding">无法识别文件编码，请将文件另存为 UTF-8 后重试</string>
+    <string name="backup_error_unprocessable">备份文件无法处理</string>
+    <string name="backup_error_generic">操作失败：%1$s</string>
+
+    <!-- Study misc -->
+    <string name="study_session_missing">会话不存在</string>
+    <!-- Judge option labels double as stored answer values; they must stay
+         identical to Grading.normalizeJudge output ("对"/"错"). -->
+    <string name="judge_option_true">对</string>
+    <string name="judge_option_false">错</string>
+
+    <!-- Practice sheet counts -->
+    <string name="practice_question_count">%1$d 题</string>
+    <string name="practice_filter_meta">%1$s · %2$d 题</string>
+
+    <!-- Accessibility -->
+    <string name="question_image_cd">题目图片，点按可放大查看</string>
+    <string name="question_image_fullscreen_cd">题目图片，全屏查看</string>
+    <string name="card_cell_label">第 %1$d 题，%2$s</string>
+    <string name="card_cell_current">当前题</string>
+    <string name="practice_stepper_decrease">减少题数</string>
+    <string name="practice_stepper_increase">增加题数</string>
 </resources>

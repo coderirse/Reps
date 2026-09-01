@@ -74,6 +74,29 @@ private val DarkColorScheme = darkColorScheme(
  */
 val LocalRepsDarkTheme = compositionLocalOf { false }
 
+// Grading colors resolved against the effective (override-aware) theme.
+// Reading isSystemInDarkTheme() directly would pick the wrong palette when
+// the user forces a mode from settings.
+@Composable
+fun successColor(): Color = if (LocalRepsDarkTheme.current) SuccessDark else SuccessLight
+
+@Composable
+fun onSuccessColor(): Color = if (LocalRepsDarkTheme.current) OnSuccessDark else OnSuccessLight
+
+@Composable
+fun successContainerColor(): Color =
+    if (LocalRepsDarkTheme.current) SuccessContainerDark else SuccessContainerLight
+
+@Composable
+fun onSuccessContainerColor(): Color =
+    if (LocalRepsDarkTheme.current) OnSuccessContainerDark else OnSuccessContainerLight
+
+@Composable
+fun wrongColor(): Color = if (LocalRepsDarkTheme.current) WrongDark else WrongLight
+
+@Composable
+fun onWrongColor(): Color = if (LocalRepsDarkTheme.current) OnWrongDark else OnWrongLight
+
 /**
  * App theme: fixed brand palette (no Material You dynamic color) so the
  * identity stays consistent, plus a user font-scale multiplier layered on

@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -22,14 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.entity.AnswerActionType
-import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
-import io.github.coderirse.reps.ui.theme.SuccessDark
-import io.github.coderirse.reps.ui.theme.SuccessLight
-import io.github.coderirse.reps.ui.theme.WrongDark
-import io.github.coderirse.reps.ui.theme.WrongLight
+import io.github.coderirse.reps.ui.theme.onSuccessColor
+import io.github.coderirse.reps.ui.theme.onWrongColor
+import io.github.coderirse.reps.ui.theme.successColor
+import io.github.coderirse.reps.ui.theme.wrongColor
 
 enum class CardCellStatus { UNTOUCHED, CORRECT, WRONG, BROWSED, CURRENT }
 
@@ -52,9 +53,8 @@ fun AnswerCardSheet(
     onJump: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val dark = LocalRepsDarkTheme.current
-    val correctColor = if (dark) SuccessDark else SuccessLight
-    val wrongColor = if (dark) WrongDark else WrongLight
+    val correctColor = successColor()
+    val wrongColor = wrongColor()
     val browsedColor = MaterialTheme.colorScheme.secondary
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -73,7 +73,7 @@ fun AnswerCardSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                itemsIndexed((0 until total).toList()) { index, _ ->
+                items(total) { index ->
                     val status = cellStatusFor(questionIdAt(index)?.let { perQuestion[it] }, index == currentIndex)
                     val container = when (status) {
                         CardCellStatus.CORRECT -> correctColor
@@ -83,13 +83,23 @@ fun AnswerCardSheet(
                         CardCellStatus.UNTOUCHED -> MaterialTheme.colorScheme.surfaceVariant
                     }
                     val contentColor = when (status) {
-                        CardCellStatus.CORRECT, CardCellStatus.WRONG ->
-                            if (dark) Color(0xFF101314) else Color.White
+                        CardCellStatus.CORRECT -> onSuccessColor()
+                        CardCellStatus.WRONG -> onWrongColor()
                         else -> MaterialTheme.colorScheme.onSurface
                     }
+                    // Status must not be color-only: announce it to screen readers.
+                    val statusLabel = when (status) {
+                        CardCellStatus.CORRECT -> stringResource(R.string.card_legend_correct)
+                        CardCellStatus.WRONG -> stringResource(R.string.card_legend_wrong)
+                        CardCellStatus.BROWSED -> stringResource(R.string.card_legend_browsed)
+                        CardCellStatus.CURRENT -> stringResource(R.string.card_cell_current)
+                        CardCellStatus.UNTOUCHED -> stringResource(R.string.card_legend_undo)
+                    }
+                    val cellLabel = stringResource(R.string.card_cell_label, index + 1, statusLabel)
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(48.dp) // minimum interactive target
+                            .semantics(mergeDescendants = true) { contentDescription = cellLabel }
                             .background(container, CircleShape)
                             .let {
                                 if (status == CardCellStatus.CURRENT) {

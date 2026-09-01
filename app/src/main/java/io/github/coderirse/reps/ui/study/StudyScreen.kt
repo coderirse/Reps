@@ -15,7 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -31,7 +30,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,8 +52,6 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.entity.PracticeType
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
-import io.github.coderirse.reps.data.prefs.ThemeMode
-import io.github.coderirse.reps.ui.theme.LocalRepsDarkTheme
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -69,15 +65,12 @@ fun StudyScreen(
     viewModel: StudyViewModel = viewModel(factory = StudyViewModel.create(sessionId)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = io.github.coderirse.reps.data.prefs.UserSettings.DEFAULT)
     val scope = rememberCoroutineScope()
     var showAnswerCard by remember { mutableStateOf(false) }
     var showPracticeMenu by remember { mutableStateOf(false) }
-    var showMoreMenu by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
     var pendingPracticeType by remember { mutableStateOf<String?>(null) }
-    val dark = LocalRepsDarkTheme.current
 
     // ON_STOP fallback save runs on the application scope (docs section 5.2).
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -108,14 +101,14 @@ fun StudyScreen(
         }
         return
     }
-    if (state.loadError != null) {
+    if (state.loadError) {
         Scaffold { padding ->
             Column(
                 Modifier.fillMaxSize().padding(padding),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text(state.loadError.orEmpty(), color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.study_session_missing), color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(12.dp))
                 Button(onClick = onClose) { Text(stringResource(R.string.action_back)) }
             }
@@ -190,29 +183,6 @@ fun StudyScreen(
                         },
                     )
                     Spacer(Modifier.width(8.dp))
-                }
-                IconButton(onClick = { showMoreMenu = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.study_more))
-                }
-                DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.study_dark_menu)) },
-                        // Quick toggle kept inside the study flow; the source of
-                        // truth remains the settings page. Row 1 previously had
-                        // an inline "深色" Switch that permanently overrode the
-                        // system preference and crowded the bar.
-                        trailingIcon = {
-                            Switch(
-                                checked = dark,
-                                onCheckedChange = { value ->
-                                    viewModel.setThemeMode(if (value) ThemeMode.DARK else ThemeMode.LIGHT)
-                                },
-                            )
-                        },
-                        onClick = {
-                            viewModel.setThemeMode(if (dark) ThemeMode.LIGHT else ThemeMode.DARK)
-                        },
-                    )
                 }
             }
 
