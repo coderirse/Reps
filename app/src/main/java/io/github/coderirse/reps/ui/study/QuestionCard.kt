@@ -103,6 +103,8 @@ fun QuestionCard(
         else -> setOf(question.correctAnswer)
     }
     val selectedLetters: Set<String> = when {
+        // Re-editing an answered multi (exam mode): show the in-progress picks.
+        question.type == QuestionType.MULTI && multiTemp.isNotEmpty() -> multiTemp
         ui.answered && question.type == QuestionType.MULTI -> (ui.selectedAnswer ?: "").split(",").toSet()
         ui.answered -> setOf(ui.selectedAnswer ?: "")
         else -> multiTemp
@@ -131,7 +133,12 @@ fun QuestionCard(
         Text(question.content, style = MaterialTheme.typography.titleMedium)
         question.imageFile?.let { path ->
             Spacer(Modifier.height(12.dp))
-            io.github.coderirse.reps.ui.components.AssetImage(assetPath = path)
+            io.github.coderirse.reps.ui.components.AssetImage(
+                assetPath = path,
+                // Cap the height so image questions fit one screen together
+                // with all options; tap still opens the full-size preview.
+                maxHeight = 200.dp,
+            )
         }
         Spacer(Modifier.height(16.dp))
 
@@ -161,7 +168,12 @@ fun QuestionCard(
                     value, letter, MaterialTheme.colorScheme.surfaceVariant,
                     MaterialTheme.colorScheme.onSurfaceVariant, clickable = false, checked = false,
                 )
-                ui.actionType == io.github.coderirse.reps.data.db.entity.AnswerActionType.BROWSED -> OptionVisual(
+                // 看答案子模式: revealed without grading — highlight the key.
+                !examMode && ui.revealed && !ui.graded && isCorrectOption -> OptionVisual(
+                    value, letter, successContainer, onSuccessContainer,
+                    clickable = false, checked = false,
+                )
+                !examMode && ui.revealed && !ui.graded -> OptionVisual(
                     value, letter, MaterialTheme.colorScheme.surfaceVariant,
                     MaterialTheme.colorScheme.onSurfaceVariant, clickable = false, checked = false,
                 )
@@ -182,7 +194,7 @@ fun QuestionCard(
                 showCheckbox = question.type == QuestionType.MULTI && !ui.graded,
                 onTap = { if (visual.clickable) onOptionTap(value) },
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
         }
 
         Spacer(Modifier.height(8.dp))
@@ -220,15 +232,16 @@ fun QuestionCard(
                         style = MaterialTheme.typography.titleSmall,
                         color = success,
                     )
-                    Spacer(Modifier.height(4.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        question.explanation?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.study_no_explanation),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    question.explanation?.takeIf { it.isNotBlank() }?.let { explanation ->
+                        Spacer(Modifier.height(4.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            explanation,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -249,7 +262,7 @@ private fun OptionRow(
             .fillMaxWidth()
             .background(visual.container, RoundedCornerShape(12.dp))
             .clickable(enabled = visual.clickable, onClick = onTap)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         letter?.let {

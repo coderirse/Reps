@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** 抽题题池（仅背题/模拟考试可选；错题重练/收藏练习的池子固定）。 */
+enum class PoolChoice { ALL, UNPRACTICED, WRONG, FAVORITE }
+
 data class PracticeConfigUiState(
     val loading: Boolean = true,
     val subjectName: String = "",
@@ -33,6 +36,9 @@ data class PracticeConfigUiState(
     val minutes: Int = 60,
     val order: CustomOrder = CustomOrder.SEQUENTIAL,
     val starting: Boolean = false,
+    val pool: PoolChoice = PoolChoice.ALL,
+    /** 背题/模拟考试可选题池；错题重练/收藏练习的池子由入口决定。 */
+    val poolSelectable: Boolean = false,
 ) {
     val total: Int get() = single + multi + judge
     val poolTotal: Int get() = singleMax + multiMax + judgeMax
@@ -56,50 +62,78 @@ class PracticeConfigViewModel(
     val state: StateFlow<PracticeConfigUiState> = _state
 
     init {
-        viewModelScope.launch {
-            val (name, counts) = withContext(Dispatchers.IO) {
-                val subjectName = db.subjectDao().getById(subjectId)?.name.orEmpty()
-                val counts = when (practiceType) {
-                    PracticeType.WRONG_BOOK -> {
+        viewModelScope.launch { loadPool() }
+    }
+
+    fun setPool(pool: PoolChoice) {
+        if (pool == _state.value.pool) return
+        _state.update { it.copy(pool = pool, loading = true) }
+        viewModelScope.launch { loadPool() }
+    }
+
+    private suspend fun loadPool() {
+        val (name, counts) = withContext(Dispatchers.IO) {
+            val subjectName = db.subjectDao().getById(subjectId)?.name.orEmpty()
+            val counts = when (practiceType) {
+                PracticeType.WRONG_BOOK -> {
+                    poolIds = db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
+                    countsOf(poolIds.orEmpty())
+                }
+                PracticeType.FAVORITE -> {
+                    poolIds = db.favoriteDao().getFavoriteIdsForSubject(subjectId)
+                    countsOf(poolIds.orEmpty())
+                }
+                else -> when (_state.value.pool) {
+                    PoolChoice.ALL -> {
+                        poolIds = null
+                        mapOf(
+                            QuestionType.SINGLE to db.questionDao().countByType(subjectId, QuestionType.SINGLE),
+                            QuestionType.MULTI to db.questionDao().countByType(subjectId, QuestionType.MULTI),
+                            QuestionType.JUDGE to db.questionDao().countByType(subjectId, QuestionType.JUDGE),
+                        )
+                    }
+                    PoolChoice.UNPRACTICED -> {
+                        val practiced = db.sessionAnswerDao().getPracticedIdsForSubject(subjectId).toSet()
+                        poolIds = db.questionDao().getIdsBySubject(subjectId).filter { it !in practiced }
+                        countsOf(poolIds.orEmpty())
+                    }
+                    PoolChoice.WRONG -> {
                         poolIds = db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
                         countsOf(poolIds.orEmpty())
                     }
-                    PracticeType.FAVORITE -> {
+                    PoolChoice.FAVORITE -> {
                         poolIds = db.favoriteDao().getFavoriteIdsForSubject(subjectId)
                         countsOf(poolIds.orEmpty())
                     }
-                    else -> mapOf(
-                        QuestionType.SINGLE to db.questionDao().countByType(subjectId, QuestionType.SINGLE),
-                        QuestionType.MULTI to db.questionDao().countByType(subjectId, QuestionType.MULTI),
-                        QuestionType.JUDGE to db.questionDao().countByType(subjectId, QuestionType.JUDGE),
-                    )
                 }
-                subjectName to counts
             }
-            val singleMax = counts[QuestionType.SINGLE] ?: 0
-            val multiMax = counts[QuestionType.MULTI] ?: 0
-            val judgeMax = counts[QuestionType.JUDGE] ?: 0
-            _state.update {
-                when (practiceType) {
-                    // 模拟考试默认小试卷: capped quotas, timer on, random order.
-                    PracticeType.EXAM -> it.copy(
-                        loading = false,
-                        subjectName = name,
-                        singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
-                        single = minOf(40, singleMax),
-                        multi = minOf(10, multiMax),
-                        judge = minOf(10, judgeMax),
-                        timed = true,
-                        order = CustomOrder.RANDOM,
-                    )
-                    // 背题/错题/收藏默认练整个池子.
-                    else -> it.copy(
-                        loading = false,
-                        subjectName = name,
-                        singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
-                        single = singleMax, multi = multiMax, judge = judgeMax,
-                    )
-                }
+            subjectName to counts
+        }
+        val singleMax = counts[QuestionType.SINGLE] ?: 0
+        val multiMax = counts[QuestionType.MULTI] ?: 0
+        val judgeMax = counts[QuestionType.JUDGE] ?: 0
+        _state.update {
+            when (practiceType) {
+                // 模拟考试默认小试卷: capped quotas, timer on, random order.
+                PracticeType.EXAM -> it.copy(
+                    loading = false,
+                    subjectName = name,
+                    singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
+                    single = minOf(40, singleMax),
+                    multi = minOf(10, multiMax),
+                    judge = minOf(10, judgeMax),
+                    timed = true,
+                    order = CustomOrder.RANDOM,
+                    poolSelectable = true,
+                )
+                // 背题/错题/收藏默认练整个池子.
+                else -> it.copy(
+                    loading = false,
+                    subjectName = name,
+                    singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
+                    single = singleMax, multi = multiMax, judge = judgeMax,
+                    poolSelectable = practiceType == PracticeType.RECITE,
+                )
             }
         }
     }
@@ -137,9 +171,9 @@ class PracticeConfigViewModel(
                         judge = current.judge,
                     ),
                     order = current.order,
-                    // 背题默认进「直接看答案」子模式，页内可切到「先作答」；其余模式
-                    // 一律考试式：作答不揭示，交卷后才出答案。
-                    reciteMode = if (practiceType == PracticeType.RECITE) ReciteMode.BROWSE else ReciteMode.TEST,
+                    // 背题默认进「答题」子模式（先作答后看答案），页内可切到「看答案」；
+                    // 其余模式一律考试式：作答不揭示，交卷后才出答案。
+                    reciteMode = ReciteMode.TEST,
                     deadlineMinutes = if (current.timed) current.minutes else 0,
                     poolIds = poolIds,
                 )

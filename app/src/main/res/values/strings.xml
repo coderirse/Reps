@@ -116,7 +116,7 @@
     <string name="study_prev">上一题</string>
     <string name="study_next">下一题</string>
     <string name="study_answer_card">答题卡</string>
-    <string name="study_mode_a">背题</string>
+    <string name="study_mode_a">看答案</string>
     <string name="study_mode_b">答题</string>
     <string name="study_more">更多选项</string>
     <string name="study_answer_label">正确答案：%1$s</string>
@@ -256,4 +256,13 @@
     <!-- Home footer -->
     <string name="home_footer_slogan">One more rep.</string>
     <string name="home_footer_copyright">Copyright © 2026 caeamer. All rights reserved.</string>
+
+    <!-- Pool picker -->
+    <string name="config_section_pool">题池</string>
+    <string name="pool_all">全部题库</string>
+    <string name="pool_unpracticed">没刷过的</string>
+    <string name="pool_wrong">错题本</string>
+    <string name="pool_favorite">收藏</string>
+    <string name="config_quota_input_title">输入题数</string>
+    <string name="config_quota_input_hint">0 – %1$d</string>
 </resources>

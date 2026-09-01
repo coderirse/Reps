@@ -50,7 +50,6 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.ui.home.practiceModeLabel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -115,30 +114,21 @@ fun StudyScreen(
     val questions = state.questions
     val pagerState = rememberPagerState(pageCount = { questions.size })
 
-    // VM state drives the pager (answer-card jumps).
+    // VM state drives the pager: adjacent moves animate (auto-advance after
+    // a correct answer), far jumps (answer card) land instantly.
     LaunchedEffect(state.currentIndex) {
         if (pagerState.currentPage != state.currentIndex) {
-            pagerState.scrollToPage(state.currentIndex)
+            if (kotlin.math.abs(pagerState.currentPage - state.currentIndex) == 1) {
+                pagerState.animateScrollToPage(state.currentIndex)
+            } else {
+                pagerState.scrollToPage(state.currentIndex)
+            }
         }
     }
     // Swipe navigation feeds back into the VM (persists the position left).
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collectLatest { page ->
             viewModel.onIndexChange(page)
-        }
-    }
-
-    // 背题·答题子模式: correct answer auto-advances after a short beat.
-    LaunchedEffect(Unit) {
-        viewModel.events.collect { event ->
-            when (event) {
-                StudyEvent.AutoAdvanceNext -> {
-                    delay(600)
-                    if (pagerState.currentPage < questions.size - 1) {
-                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                    }
-                }
-            }
         }
     }
 

@@ -37,6 +37,13 @@ interface SessionAnswerDao {
     @Query("DELETE FROM session_answers WHERE sessionId = :sessionId")
     suspend fun deleteForSession(sessionId: Long)
 
+    /** Distinct question ids of a subject the user has ever touched. */
+    @Query(
+        "SELECT DISTINCT sa.questionId FROM session_answers sa " +
+            "JOIN questions q ON q.id = sa.questionId WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getPracticedIdsForSubject(subjectId: Long): List<Long>
+
     /**
      * Per-subject count of distinct questions the user has touched, used by the
      * library cards for their "已练 x/y" progress. Emits as a Flow so a card

@@ -21,9 +21,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -43,11 +41,6 @@ data class QuestionUiState(
     /** Any recorded pick, including unrevealed exam picks. */
     val answered: Boolean get() =
         actionType == AnswerActionType.SELECTED || actionType == AnswerActionType.EXAM_SELECTED
-}
-
-/** One-shot UI events from the VM (auto-advance after a correct recite answer). */
-sealed interface StudyEvent {
-    data object AutoAdvanceNext : StudyEvent
 }
 
 data class StudyUiState(
@@ -93,9 +86,6 @@ class StudyViewModel(
 
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state
-
-    private val _events = MutableSharedFlow<StudyEvent>(extraBufferCapacity = 1)
-    val events: SharedFlow<StudyEvent> = _events
 
     init {
         viewModelScope.launch { load() }
@@ -310,9 +300,14 @@ class StudyViewModel(
                 )
             }
             gradingInFlight.remove(question.id)
-            // 背题·答题子模式: 答对短暂停留后自动下一题，答错留下手动翻页.
-            if (correct && _state.value.currentIndex < _state.value.questions.size - 1) {
-                _events.tryEmit(StudyEvent.AutoAdvanceNext)
+            // 背题·答题子模式: 答对短暂停留后自动下一题，答错留下手动翻页。
+            // VM 侧延迟并在跳前校验用户没有手动翻走，避免与 pager 动画竞争。
+            if (correct && current.currentIndex < current.questions.size - 1) {
+                val answeredIndex = current.currentIndex
+                delay(600)
+                if (_state.value.currentIndex == answeredIndex) {
+                    onIndexChange(answeredIndex + 1)
+                }
             }
         }
     }
