@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -13,8 +14,18 @@ interface QuestionDao {
     @Insert
     suspend fun insertAll(questions: List<QuestionEntity>): List<Long>
 
+    @Query("SELECT * FROM questions")
+    suspend fun getAll(): List<QuestionEntity>
+
+    /** Backup import: matched by primary key id. */
+    @Upsert
+    suspend fun upsertAll(questions: List<QuestionEntity>)
+
     @Query("SELECT * FROM questions WHERE subjectId = :subjectId ORDER BY orderIndex ASC")
     fun observeBySubject(subjectId: Long): Flow<List<QuestionEntity>>
+
+    @Query("SELECT * FROM questions WHERE subjectId = :subjectId ORDER BY orderIndex ASC")
+    suspend fun getForSubject(subjectId: Long): List<QuestionEntity>
 
     @Query("SELECT * FROM questions WHERE id = :id")
     suspend fun getById(id: Long): QuestionEntity?

@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 object PracticeType {
     const val SEQUENTIAL = "sequential"
@@ -40,6 +41,7 @@ object SessionStatus {
     ],
     indices = [Index("subjectId"), Index("status")],
 )
+@Serializable
 data class StudySessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val subjectId: Long,
@@ -49,9 +51,10 @@ data class StudySessionEntity(
     val reciteMode: String,
     /**
      * Snapshot of question ids for this session, ordered as the session queue
-     * (shuffled for RANDOM at creation time using [randomSeed]). JSON array.
-     * Snapshotting keeps the queue stable even if the wrong-book/favorites
-     * change mid-session.
+     * (shuffled for RANDOM at creation time using [randomSeed]). Stored as a
+     * comma-separated id string ("1,2,3") — NOT a JSON array. Snapshotting
+     * keeps the queue stable even if the wrong-book/favorites change
+     * mid-session.
      */
     val questionIds: String,
     /** Index into [questionIds]. */

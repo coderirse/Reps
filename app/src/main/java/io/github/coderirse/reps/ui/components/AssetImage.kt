@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.window.Dialog
+import io.github.coderirse.reps.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -27,7 +29,8 @@ import kotlinx.coroutines.withContext
 fun AssetImage(
     assetPath: String,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null,
+    // The image can be part of the question stem; never leave it unreadable.
+    contentDescription: String? = stringResource(R.string.question_image_cd),
 ) {
     val context = LocalContext.current
     var bitmap by remember(assetPath) { mutableStateOf<ImageBitmap?>(null) }
@@ -61,7 +64,7 @@ fun AssetImage(
             Dialog(onDismissRequest = { showFullscreen = false }) {
                 Image(
                     bitmap = bmp,
-                    contentDescription = null,
+                    contentDescription = stringResource(R.string.question_image_fullscreen_cd),
                     modifier = Modifier.fillMaxWidth(),
                     contentScale = ContentScale.FillWidth,
                 )

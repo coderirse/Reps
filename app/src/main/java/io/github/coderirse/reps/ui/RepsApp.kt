@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import io.github.coderirse.reps.R
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
 import io.github.coderirse.reps.ui.import.ImportPreviewScreen
@@ -91,12 +92,13 @@ fun RepsApp() {
             }
             composable<ImportPreview> { entry ->
                 val args = entry.toRoute<ImportPreview>()
+                val context = androidx.compose.ui.platform.LocalContext.current
                 ImportPreviewScreen(
                     uri = android.net.Uri.parse(URLDecoder.decode(args.encodedUri, "UTF-8")),
                     onBack = { navController.popBackStack() },
                     onImported = { _, count ->
                         navController.previousBackStackEntry
-                            ?.savedStateHandle?.set(IMPORT_MESSAGE_KEY, "已导入 $count 题")
+                            ?.savedStateHandle?.set(IMPORT_MESSAGE_KEY, context.getString(R.string.import_done_message, count))
                         navController.popBackStack()
                     },
                 )

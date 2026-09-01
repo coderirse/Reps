@@ -34,6 +34,9 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Packages the exported schemas into androidTest assets so
+        // MigrationTestHelper can create v1/v2 databases on device.
+        testInstrumentationRunnerArgument("room.schemaLocation", "$projectDir/schemas")
     }
 
     signingConfigs {

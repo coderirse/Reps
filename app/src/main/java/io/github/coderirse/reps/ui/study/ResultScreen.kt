@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.core.TimeFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,7 +49,10 @@ fun ResultScreen(
                 title = { Text(stringResource(R.string.result_title)) },
                 navigationIcon = {
                     IconButton(onClick = onDone) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
                     }
                 },
             )
@@ -145,7 +149,4 @@ private fun WrongItemCard(index: Int, item: ResultWrongItem) {
     }
 }
 
-private fun formatDuration(ms: Long): String {
-    val totalSec = ms / 1000
-    return "%02d:%02d".format(totalSec / 60, totalSec % 60)
-}
+private fun formatDuration(ms: Long): String = TimeFormat.duration(ms)

@@ -63,7 +63,10 @@ class ResultViewModel(
                     answered = graded.size,
                     correct = graded.count { a -> a.isCorrect == true },
                     total = session.questionIds.split(",").count { s -> s.isNotBlank() },
-                    durationMs = (session.lastActiveAt - session.startedAt).coerceAtLeast(0),
+                    // accumulatedMs only counts foreground time (StudyViewModel
+                    // stops accrual on ON_STOP); lastActiveAt-startedAt would
+                    // include hours the app spent in the background.
+                    durationMs = session.accumulatedMs.coerceAtLeast(0),
                     wrongItems = wrongItems,
                 )
             }

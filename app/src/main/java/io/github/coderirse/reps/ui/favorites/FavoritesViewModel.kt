@@ -2,14 +2,20 @@ package io.github.coderirse.reps.ui.favorites
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.data.db.RepsDatabase
+import io.github.coderirse.reps.data.db.dao.FavoriteRow
+import io.github.coderirse.reps.data.db.entity.PracticeType
+import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.withContext
 
 class FavoritesViewModel(
@@ -17,26 +23,49 @@ class FavoritesViewModel(
     private val sessionRepository: StudySessionRepository,
 ) : ViewModel() {
 
-    /** @param subjectId null = all subjects. */
-    fun observeRows(subjectId: Long?): Flow<List<io.github.coderirse.reps.data.db.dao.FavoriteRow>> =
-        db.favoriteDao().observeRows(subjectId)
+    // Filter lives in the VM so [rows] is a single Flow: creating the Flow in
+    // composition made every recomposition cancel and restart the Room query.
+    private val _subjectFilter = MutableStateFlow<Long?>(null)
+    val subjectFilter: StateFlow<Long?> = _subjectFilter
 
-    fun observeSubjectIds(): Flow<List<Long>> = db.favoriteDao().observeSubjectIds()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val rows: Flow<List<FavoriteRow>> =
+        _subjectFilter.flatMapLatest { db.favoriteDao().observeRows(it) }
+
+    val subjectIds: Flow<List<Long>> = db.favoriteDao().observeSubjectIds()
+
+    fun setSubjectFilter(subjectId: Long?) {
+        _subjectFilter.value = subjectId
+    }
 
     suspend fun getSubjectName(subjectId: Long): String = withContext(Dispatchers.IO) {
         db.subjectDao().getById(subjectId)?.name.orEmpty()
     }
 
+    /** Re-entry guard against double taps: a second call returns null. */
+    private var starting = false
+
     /** @return session id, or null when the subject has no favorites. */
-    suspend fun startPractice(subjectId: Long): Long? = withContext(Dispatchers.IO) {
-        val ids = db.favoriteDao().getFavoriteIdsForSubject(subjectId)
-        if (ids.isEmpty()) return@withContext null
-        sessionRepository.createSession(
-            subjectId = subjectId,
-            practiceType = "favorite",
-            reciteMode = "mode_b_test",
-            baseQuestionIds = ids,
-        )
+    suspend fun startPractice(subjectId: Long): Long? {
+        if (starting) return null
+        starting = true
+        return try {
+            withContext(Dispatchers.IO) {
+                val ids = db.favoriteDao().getFavoriteIdsForSubject(subjectId)
+                if (ids.isEmpty()) {
+                    null
+                } else {
+                    sessionRepository.createSession(
+                        subjectId = subjectId,
+                        practiceType = PracticeType.FAVORITE,
+                        reciteMode = ReciteMode.TEST,
+                        baseQuestionIds = ids,
+                    )
+                }
+            }
+        } finally {
+            starting = false
+        }
     }
 
     companion object {

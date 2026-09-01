@@ -19,6 +19,19 @@ interface FavoriteDao {
     @Upsert
     suspend fun add(favorite: FavoriteEntity)
 
+    @Query("SELECT * FROM favorites")
+    suspend fun getAll(): List<FavoriteEntity>
+
+    @Query(
+        "SELECT f.* FROM favorites f JOIN questions q ON q.id = f.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<FavoriteEntity>
+
+    /** Backup import: matched by questionId primary key. */
+    @Upsert
+    suspend fun upsertAll(favorites: List<FavoriteEntity>)
+
     @Query("DELETE FROM favorites WHERE questionId = :questionId")
     suspend fun remove(questionId: Long)
 

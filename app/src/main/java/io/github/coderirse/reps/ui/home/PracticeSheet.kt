@@ -16,6 +16,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -32,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.coderirse.reps.R
 import io.github.coderirse.reps.core.CustomOrder
@@ -142,6 +145,7 @@ fun PracticeSheet(
     }
 }
 
+@Composable
 private fun contextLabel(
     step: SheetStep.ChooseMode,
     chapterCounts: List<Pair<String, Int>>,
@@ -154,7 +158,7 @@ private fun contextLabel(
         else -> null
     } ?: return null
     val count = source.firstOrNull { it.first == value }?.second ?: return null
-    return "$value · $count 题"
+    return stringResource(R.string.practice_filter_meta, value, count)
 }
 
 @Composable
@@ -214,7 +218,7 @@ private fun FilterList(
         chapterCounts.forEach { (value, count) ->
             ListItem(
                 headlineContent = { Text(value) },
-                trailingContent = { Text("$count 题") },
+                trailingContent = { Text(stringResource(R.string.practice_question_count, count)) },
                 modifier = Modifier.clickable { onPick(HomeViewModel.FILTER_CHAPTER, value) },
             )
         }
@@ -229,7 +233,7 @@ private fun FilterList(
         categoryCounts.forEach { (value, count) ->
             ListItem(
                 headlineContent = { Text(value) },
-                trailingContent = { Text("$count 题") },
+                trailingContent = { Text(stringResource(R.string.practice_question_count, count)) },
                 modifier = Modifier.clickable { onPick(HomeViewModel.FILTER_CATEGORY, value) },
             )
         }
@@ -401,6 +405,8 @@ private fun CustomConfigForm(
 
 @Composable
 private fun Stepper(label: String, value: Int, max: Int, step: Int = 1, onChange: (Int) -> Unit) {
+    val decreaseLabel = stringResource(R.string.practice_stepper_decrease)
+    val increaseLabel = stringResource(R.string.practice_stepper_increase)
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -416,11 +422,23 @@ private fun Stepper(label: String, value: Int, max: Int, step: Int = 1, onChange
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onChange((value - step).coerceAtLeast(0)) }, enabled = value > 0) {
-                Text("−", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "−",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics {
+                        contentDescription = decreaseLabel
+                    },
+                )
             }
             Text("$value", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 8.dp))
             IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = value < max) {
-                Text("+", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "+",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.semantics {
+                        contentDescription = increaseLabel
+                    },
+                )
             }
         }
     }
@@ -433,6 +451,7 @@ private fun TextButtonBack(onBack: () -> Unit) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .padding(vertical = 8.dp)
             .clickable(onClick = onBack),
     )

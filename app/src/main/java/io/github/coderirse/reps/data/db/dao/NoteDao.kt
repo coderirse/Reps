@@ -11,9 +11,26 @@ interface NoteDao {
     @Upsert
     suspend fun upsert(note: NoteEntity)
 
+    /** Backup import: matched by questionId primary key. */
+    @Upsert
+    suspend fun upsertAll(notes: List<NoteEntity>)
+
     @Query("SELECT * FROM notes WHERE questionId = :questionId")
     suspend fun getByQuestion(questionId: Long): NoteEntity?
 
     @Query("SELECT * FROM notes WHERE questionId IN (:questionIds)")
     suspend fun getForIds(questionIds: List<Long>): List<NoteEntity>
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAll(): List<NoteEntity>
+
+    @Query(
+        "SELECT n.* FROM notes n JOIN questions q ON q.id = n.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<NoteEntity>
+
+    /** Blank notes are removed instead of upserted as empty rows. */
+    @Query("DELETE FROM notes WHERE questionId = :questionId")
+    suspend fun delete(questionId: Long)
 }

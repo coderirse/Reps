@@ -45,13 +45,14 @@ fun FavoritesScreen(
     onSessionStarted: (Long) -> Unit,
     viewModel: FavoritesViewModel = viewModel(factory = FavoritesViewModel.Factory),
 ) {
-    var subjectFilter by remember { mutableStateOf<Long?>(null) }
-    val rows by viewModel.observeRows(subjectFilter).collectAsStateWithLifecycle(initialValue = null)
-    val subjectIds by viewModel.observeSubjectIds().collectAsStateWithLifecycle(initialValue = emptyList())
+    val subjectFilter by viewModel.subjectFilter.collectAsStateWithLifecycle()
+    val rows by viewModel.rows.collectAsStateWithLifecycle(initialValue = null)
+    val subjectIds by viewModel.subjectIds.collectAsStateWithLifecycle(initialValue = emptyList())
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var subjectNames by remember { mutableStateOf(emptyMap<Long, String>()) }
     var startHint by remember { mutableStateOf<String?>(null) }
+    val hintText = stringResource(R.string.favorites_pick_subject_hint)
 
     LaunchedEffect(startHint) {
         startHint?.let {
@@ -79,11 +80,11 @@ fun FavoritesScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     CardChip(label = stringResource(R.string.filter_all), selected = subjectFilter == null) {
-                        subjectFilter = null
+                        viewModel.setSubjectFilter(null)
                     }
                     subjectIds.forEach { id ->
                         CardChip(label = subjectNames[id] ?: "#$id", selected = subjectFilter == id) {
-                            subjectFilter = id
+                            viewModel.setSubjectFilter(id)
                         }
                     }
                 }
@@ -106,7 +107,7 @@ fun FavoritesScreen(
                             onClick = {
                                 val target = subjectFilter ?: subjectIds.singleOrNull()
                                 if (target == null) {
-                                    startHint = "收藏跨多个题库，请先在上方选择一个题库"
+                                    startHint = hintText
                                 } else {
                                     scope.launch {
                                         viewModel.startPractice(target)?.let(onSessionStarted)

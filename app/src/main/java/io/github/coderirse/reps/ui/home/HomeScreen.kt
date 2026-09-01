@@ -24,9 +24,12 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.core.TimeFormat
 import io.github.coderirse.reps.data.db.entity.SubjectEntity
 import io.github.coderirse.reps.ui.components.EmptyState
 import kotlinx.coroutines.launch
@@ -65,6 +69,7 @@ fun HomeScreen(
     val subjects by viewModel.subjects.collectAsStateWithLifecycle(initialValue = null)
     val activeSessions by viewModel.activeSessions.collectAsStateWithLifecycle(initialValue = null)
     val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = io.github.coderirse.reps.data.prefs.UserSettings.DEFAULT)
+    val practicedCounts by viewModel.practicedCounts.collectAsStateWithLifecycle(initialValue = emptyMap())
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var restoreDismissed by remember { mutableStateOf(false) }
@@ -116,6 +121,7 @@ fun HomeScreen(
             else -> SubjectList(
                 subjects = currentSubjects,
                 builtinSubjectId = settings.builtinSubjectId,
+                practicedCounts = practicedCounts,
                 onImportClick = { filePicker.launch(arrayOf("*/*")) },
                 onStartSession = onStartSession,
                 viewModel = viewModel,
@@ -196,10 +202,7 @@ private data class RestoreMeta(
     val lastActiveAt: Long,
 )
 
-private fun formatDuration(ms: Long): String {
-    val totalSec = ms / 1000
-    return "%02d:%02d".format(totalSec / 60, totalSec % 60)
-}
+private fun formatDuration(ms: Long): String = TimeFormat.duration(ms)
 
 private fun formatLastActive(epochMs: Long): String =
     java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(Date(epochMs))
@@ -208,6 +211,7 @@ private fun formatLastActive(epochMs: Long): String =
 private fun SubjectList(
     subjects: List<SubjectEntity>,
     builtinSubjectId: Long,
+    practicedCounts: Map<Long, Int>,
     onImportClick: () -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel,
@@ -221,6 +225,9 @@ private fun SubjectList(
     var countsByType by remember { mutableStateOf(emptyMap<String, Int>()) }
     var resumeSession by remember { mutableStateOf<io.github.coderirse.reps.data.db.entity.StudySessionEntity?>(null) }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val undoLabel = stringResource(R.string.action_undo)
+    val noQuestionsHint = stringResource(R.string.home_no_questions_hint)
 
     // Load sheet context data whenever a subject is tapped.
     LaunchedEffect(sheetSubject?.id) {
@@ -243,6 +250,7 @@ private fun SubjectList(
                 SubjectCard(
                     subject = subject,
                     dateText = dateFormat.format(Date(subject.createdAt)),
+                    practiced = practicedCounts[subject.id] ?: 0,
                     onTap = { sheetSubject = subject },
                     // Built-in bank is app content: no delete entry.
                     deletable = subject.id != builtinSubjectId,
@@ -287,7 +295,11 @@ private fun SubjectList(
                         customOrder = request.customOrder,
                         deadlineMinutes = request.deadlineMinutes,
                     )
-                    onStartSession(sessionId)
+                    if (sessionId != null) {
+                        onStartSession(sessionId)
+                    } else {
+                        snackbarHostState.showSnackbar(noQuestionsHint)
+                    }
                 }
             },
             onDismiss = { sheetSubject = null },
@@ -302,9 +314,18 @@ private fun SubjectList(
             confirmButton = {
                 TextButton(onClick = {
                     val name = subject.name
-                    viewModel.deleteSubject(subject.id)
                     deleteCandidate = null
-                    scope.launch { snackbarHostState.showSnackbar("已删除「$name」") }
+                    scope.launch {
+                        val snapshot = viewModel.deleteSubject(subject.id) ?: return@launch
+                        val result = snackbarHostState.showSnackbar(
+                            message = context.getString(R.string.subject_deleted, name),
+                            actionLabel = undoLabel,
+                            duration = SnackbarDuration.Long,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.restoreSubject(snapshot)
+                        }
+                    }
                 }) { Text(stringResource(R.string.dialog_delete_confirm)) }
             },
             dismissButton = {
@@ -320,6 +341,7 @@ private fun SubjectList(
 private fun SubjectCard(
     subject: SubjectEntity,
     dateText: String,
+    practiced: Int,
     deletable: Boolean,
     onTap: () -> Unit,
     onDelete: () -> Unit,
@@ -340,11 +362,29 @@ private fun SubjectCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    stringResource(R.string.subject_progress, practiced, subject.questionCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                LinearProgressIndicator(
+                    progress = {
+                        if (subject.questionCount <= 0) 0f else {
+                            (practiced.toFloat() / subject.questionCount).coerceIn(0f, 1f)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             if (deletable) {
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = null)
+                        Icon(
+                            Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.nav_more),
+                        )
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(

@@ -16,11 +16,26 @@ data class WrongBookRow(
     val mastered: Boolean,
 )
 
+data class SubjectWrongCount(val subjectId: Long, val count: Int)
+
 @Dao
 interface WrongAnswerDao {
 
     @Upsert
     suspend fun upsert(wrongAnswer: WrongAnswerEntity)
+
+    @Query("SELECT * FROM wrong_answers")
+    suspend fun getAll(): List<WrongAnswerEntity>
+
+    @Query(
+        "SELECT w.* FROM wrong_answers w JOIN questions q ON q.id = w.questionId " +
+            "WHERE q.subjectId = :subjectId",
+    )
+    suspend fun getForSubject(subjectId: Long): List<WrongAnswerEntity>
+
+    /** Backup import: matched by questionId primary key. */
+    @Upsert
+    suspend fun upsertAll(wrongAnswers: List<WrongAnswerEntity>)
 
     @Query("SELECT * FROM wrong_answers WHERE questionId = :questionId")
     suspend fun getByQuestion(questionId: Long): WrongAnswerEntity?
@@ -52,4 +67,11 @@ interface WrongAnswerDao {
 
     @Query("UPDATE wrong_answers SET mastered = :mastered WHERE questionId = :questionId")
     suspend fun setMastered(questionId: Long, mastered: Boolean)
+
+    @Query(
+        "SELECT q.subjectId AS subjectId, COUNT(*) AS count " +
+            "FROM wrong_answers w JOIN questions q ON q.id = w.questionId " +
+            "WHERE w.mastered = 0 GROUP BY q.subjectId",
+    )
+    suspend fun getUnmasteredCountsBySubject(): List<SubjectWrongCount>
 }
