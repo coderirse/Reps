@@ -19,8 +19,6 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,9 +47,10 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
-import io.github.coderirse.reps.data.db.entity.PracticeType
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
+import io.github.coderirse.reps.ui.home.practiceModeLabel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -61,16 +60,13 @@ fun StudyScreen(
     sessionId: Long,
     onClose: () -> Unit,
     onSessionFinished: (Long) -> Unit,
-    onSessionRestart: (Long) -> Unit,
     viewModel: StudyViewModel = viewModel(factory = StudyViewModel.create(sessionId)),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var showAnswerCard by remember { mutableStateOf(false) }
-    var showPracticeMenu by remember { mutableStateOf(false) }
     var showSubmitDialog by remember { mutableStateOf(false) }
     var showNoteDialog by remember { mutableStateOf(false) }
-    var pendingPracticeType by remember { mutableStateOf<String?>(null) }
 
     // ON_STOP fallback save runs on the application scope (docs section 5.2).
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -132,10 +128,24 @@ fun StudyScreen(
         }
     }
 
+    // 背题·答题子模式: correct answer auto-advances after a short beat.
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                StudyEvent.AutoAdvanceNext -> {
+                    delay(600)
+                    if (pagerState.currentPage < questions.size - 1) {
+                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                    }
+                }
+            }
+        }
+    }
+
     val currentQuestion = questions.getOrNull(state.currentIndex)
     val currentUi = currentQuestion?.let { state.perQuestion[it.id] }
     val timed = state.remainingMs != null
-    val ungradedCount = questions.count { state.perQuestion[it.id]?.graded != true }
+    val unansweredCount = questions.count { state.perQuestion[it.id]?.answered != true }
     val remainingText = state.remainingMs?.let { ms ->
         val totalSec = (ms / 1000).coerceAtLeast(0)
         "%02d:%02d".format(totalSec / 60, totalSec % 60)
@@ -195,20 +205,24 @@ fun StudyScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                TextButton(onClick = { showPracticeMenu = true }) {
-                    Text(practiceTypeLabel(state.practiceType))
-                }
-                SingleChoiceSegmentedButtonRow {
-                    SegmentedButton(
-                        selected = state.reciteMode == ReciteMode.BROWSE,
-                        onClick = { viewModel.onReciteModeChange(ReciteMode.BROWSE) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
-                    ) { Text(stringResource(R.string.study_mode_a)) }
-                    SegmentedButton(
-                        selected = state.reciteMode == ReciteMode.TEST,
-                        onClick = { viewModel.onReciteModeChange(ReciteMode.TEST) },
-                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
-                    ) { Text(stringResource(R.string.study_mode_b)) }
+                Text(
+                    practiceModeLabel(state.practiceType),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (!state.examMode) {
+                    SingleChoiceSegmentedButtonRow {
+                        SegmentedButton(
+                            selected = state.reciteMode == ReciteMode.BROWSE,
+                            onClick = { viewModel.onReciteModeChange(ReciteMode.BROWSE) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2),
+                        ) { Text(stringResource(R.string.study_mode_a)) }
+                        SegmentedButton(
+                            selected = state.reciteMode == ReciteMode.TEST,
+                            onClick = { viewModel.onReciteModeChange(ReciteMode.TEST) },
+                            shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2),
+                        ) { Text(stringResource(R.string.study_mode_b)) }
+                    }
                 }
                 currentQuestion?.let { question ->
                     val isFavorite = question.id in state.favorites
@@ -254,6 +268,7 @@ fun StudyScreen(
                         multiTemp = state.multiTemp[question.id].orEmpty(),
                         onOptionTap = { value -> viewModel.onOptionTap(question, value) },
                         modifier = Modifier.fillMaxSize(),
+                        examMode = state.examMode,
                     )
                 }
             }
@@ -303,52 +318,13 @@ fun StudyScreen(
                 total = questions.size,
                 currentIndex = state.currentIndex,
                 perQuestion = state.perQuestion,
+                examMode = state.examMode,
                 questionIdAt = { index -> questions.getOrNull(index)?.id },
                 onJump = { index ->
                     showAnswerCard = false
                     scope.launch { pagerState.animateScrollToPage(index) }
                 },
                 onDismiss = { showAnswerCard = false },
-            )
-        }
-
-        DropdownMenu(expanded = showPracticeMenu, onDismissRequest = { showPracticeMenu = false }) {
-            // Only the two switchable types; the rest (专项/自定义/错题/收藏)
-            // need their own configuration and live on the practice sheet —
-            // permanently disabled menu items read as "broken".
-            listOf(
-                PracticeType.SEQUENTIAL to false,
-                PracticeType.RANDOM to true,
-            ).forEach { (type, shuffle) ->
-                DropdownMenuItem(
-                    text = { Text(practiceTypeLabel(type)) },
-                    onClick = {
-                        showPracticeMenu = false
-                        pendingPracticeType = type
-                    },
-                )
-            }
-        }
-
-        pendingPracticeType?.let { type ->
-            AlertDialog(
-                onDismissRequest = { pendingPracticeType = null },
-                title = { Text(stringResource(R.string.practice_switch_title)) },
-                text = { Text(stringResource(R.string.practice_switch_text)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pendingPracticeType = null
-                        scope.launch {
-                            viewModel.recreateSession(type, shuffle = type == PracticeType.RANDOM)
-                                ?.let { newId -> onSessionRestart(newId) }
-                        }
-                    }) { Text(stringResource(R.string.action_start)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingPracticeType = null }) {
-                        Text(stringResource(R.string.dialog_cancel))
-                    }
-                },
             )
         }
 
@@ -359,12 +335,12 @@ fun StudyScreen(
                 text = {
                     Text(
                         stringResource(
-                            if (ungradedCount > 0) {
+                            if (unansweredCount > 0) {
                                 R.string.study_submit_incomplete_text
                             } else {
                                 R.string.study_submit_confirm_text
                             },
-                            ungradedCount,
+                            unansweredCount,
                         ),
                     )
                 },
@@ -419,16 +395,3 @@ private fun NoteDialog(initial: String, onDismiss: () -> Unit, onSave: (String) 
         },
     )
 }
-
-@Composable
-private fun practiceTypeLabel(type: String): String = stringResource(
-    when (type) {
-        PracticeType.SEQUENTIAL -> R.string.practice_sequential
-        PracticeType.RANDOM -> R.string.practice_random
-        PracticeType.CATEGORY -> R.string.practice_category
-        PracticeType.CUSTOM -> R.string.practice_custom
-        PracticeType.WRONG_BOOK -> R.string.practice_wrong_book
-        PracticeType.FAVORITE -> R.string.practice_favorite
-        else -> R.string.practice_sequential
-    },
-)

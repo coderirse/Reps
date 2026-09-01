@@ -10,6 +10,7 @@ import io.github.coderirse.reps.core.Grading
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.entity.AnswerActionType
 import io.github.coderirse.reps.data.db.entity.NoteEntity
+import io.github.coderirse.reps.data.db.entity.PracticeType
 import io.github.coderirse.reps.data.db.entity.QuestionEntity
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
@@ -20,7 +21,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -36,6 +39,15 @@ data class QuestionUiState(
 ) {
     val graded: Boolean get() = actionType == AnswerActionType.SELECTED
     val untouched: Boolean get() = actionType == null
+
+    /** Any recorded pick, including unrevealed exam picks. */
+    val answered: Boolean get() =
+        actionType == AnswerActionType.SELECTED || actionType == AnswerActionType.EXAM_SELECTED
+}
+
+/** One-shot UI events from the VM (auto-advance after a correct recite answer). */
+sealed interface StudyEvent {
+    data object AutoAdvanceNext : StudyEvent
 }
 
 data class StudyUiState(
@@ -51,6 +63,8 @@ data class StudyUiState(
     val multiTemp: Map<Long, Set<String>> = emptyMap(),
     val remainingMs: Long? = null,
     val sessionCompleted: Boolean = false,
+    /** 考试模式 (模拟考试/错题重练/收藏练习): 作答不揭示对错，交卷后统一出答案. */
+    val examMode: Boolean = false,
     val favorites: Set<Long> = emptySet(),
     val notes: Map<Long, String> = emptyMap(),
 )
@@ -80,6 +94,9 @@ class StudyViewModel(
     private val _state = MutableStateFlow(StudyUiState())
     val state: StateFlow<StudyUiState> = _state
 
+    private val _events = MutableSharedFlow<StudyEvent>(extraBufferCapacity = 1)
+    val events: SharedFlow<StudyEvent> = _events
+
     init {
         viewModelScope.launch { load() }
     }
@@ -95,6 +112,8 @@ class StudyViewModel(
             return
         }
         session = loaded
+        // Legacy sessions restored with 直接看答案 mode keep their reveal behavior.
+        val examMode = loaded.practiceType != PracticeType.RECITE && loaded.reciteMode == ReciteMode.TEST
         accumulatedMs = loaded.accumulatedMs
         lastTickAt = System.currentTimeMillis()
         val questions = sessionRepository.getQuestions(loaded)
@@ -115,13 +134,16 @@ class StudyViewModel(
                 currentIndex = loaded.currentIndex.coerceIn(0, (questions.size - 1).coerceAtLeast(0)),
                 reciteMode = loaded.reciteMode,
                 perQuestion = answers.mapValues { (_, a) ->
+                    // Exam sessions never reveal, even for restored picks; the
+                    // stored isCorrect stays hidden until the result page.
                     QuestionUiState(
                         actionType = a.actionType,
                         selectedAnswer = a.selectedAnswer,
-                        isCorrect = a.isCorrect,
-                        revealed = true,
+                        isCorrect = if (examMode) null else a.isCorrect,
+                        revealed = !examMode,
                     )
                 },
+                examMode = examMode,
                 remainingMs = if (loaded.deadlineAt > 0) (loaded.deadlineAt - System.currentTimeMillis()).coerceAtLeast(0) else null,
                 favorites = favoriteIds,
                 notes = notes,
@@ -256,6 +278,10 @@ class StudyViewModel(
     private fun grade(question: QuestionEntity, raw: String) {
         val s = session ?: return
         val current = _state.value
+        if (current.examMode) {
+            recordExamPick(question, raw)
+            return
+        }
         if (current.perQuestion[question.id]?.graded == true) return
         // Synchronous re-entry guard: the graded flag above only flips after
         // the DB write completes, so two fast taps would both pass it.
@@ -282,6 +308,39 @@ class StudyViewModel(
                         ),
                     multiTemp = st.multiTemp - question.id,
                 )
+            }
+            gradingInFlight.remove(question.id)
+            // 背题·答题子模式: 答对短暂停留后自动下一题，答错留下手动翻页.
+            if (correct && _state.value.currentIndex < _state.value.questions.size - 1) {
+                _events.tryEmit(StudyEvent.AutoAdvanceNext)
+            }
+        }
+    }
+
+    /** Exam pick: recorded without reveal; re-picking overwrites the answer. */
+    private fun recordExamPick(question: QuestionEntity, raw: String) {
+        val s = session ?: return
+        if (!gradingInFlight.add(question.id)) return
+        val dwellMs = (System.currentTimeMillis() - questionShownAt).coerceAtLeast(0)
+        viewModelScope.launch {
+            val ok = runCatching {
+                sessionRepository.recordExamAnswer(s, question, raw, dwellMs)
+            }.isSuccess
+            if (ok) {
+                val normalized = Grading.normalizeSelected(question, raw)
+                _state.update { st ->
+                    st.copy(
+                        perQuestion = st.perQuestion + (
+                            question.id to QuestionUiState(
+                                actionType = AnswerActionType.EXAM_SELECTED,
+                                selectedAnswer = normalized,
+                                isCorrect = null,
+                                revealed = false,
+                            )
+                            ),
+                        multiTemp = st.multiTemp - question.id,
+                    )
+                }
             }
             gradingInFlight.remove(question.id)
         }
@@ -311,6 +370,8 @@ class StudyViewModel(
 
     fun onReciteModeChange(newMode: String) {
         val s = session ?: return
+        // The 背题/答题 toggle exists only inside recite sessions.
+        if (s.practiceType != PracticeType.RECITE) return
         val current = _state.value
         if (newMode == current.reciteMode) return
         val currentQuestion = current.questions.getOrNull(current.currentIndex)
@@ -405,7 +466,9 @@ class StudyViewModel(
         _state.update { it.copy(sessionCompleted = true) }
         viewModelScope.launch {
             persistCurrentStateSync()
-            sessionRepository.markCompleted(s.id)
+            // gradeExamSession only touches EXAM_SELECTED rows, so recite and
+            // legacy sessions pass through it untouched (idempotent).
+            sessionRepository.gradeExamSession(s.id)
         }
     }
 
@@ -425,19 +488,6 @@ class StudyViewModel(
                 accumulatedMs = accumulatedMs,
             )
         }
-    }
-
-    /** Switch practice type mid-session: starts a fresh session, old one completes. */
-    suspend fun recreateSession(practiceType: String, shuffle: Boolean): Long? {
-        val s = session ?: return null
-        val baseIds = withContext(Dispatchers.IO) { db.questionDao().getIdsBySubject(s.subjectId) }
-        return sessionRepository.createSession(
-            subjectId = s.subjectId,
-            practiceType = practiceType,
-            reciteMode = s.reciteMode,
-            baseQuestionIds = baseIds,
-            shuffle = shuffle,
-        )
     }
 
     companion object {

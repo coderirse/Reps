@@ -7,8 +7,15 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 object AnswerActionType {
-    /** Mode B: user picked an answer and got graded. */
+    /** 背题·答题: user picked an answer and got graded + revealed at once. */
     const val SELECTED = "selected"
+
+    /**
+     * Exam modes (模拟考试/错题重练/收藏练习): the pick is recorded but nothing
+     * is revealed and the wrong book is untouched until submit, when the row
+     * is graded, linked into the wrong book and flipped to SELECTED.
+     */
+    const val EXAM_SELECTED = "exam_selected"
 
     /** Mode A: user browsed the question with answer revealed. */
     const val BROWSED = "browsed"

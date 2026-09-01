@@ -42,7 +42,7 @@ import kotlinx.coroutines.launch
 /** 收藏 Tab: favorites with subject filter and one-tap favorite practice. */
 @Composable
 fun FavoritesScreen(
-    onSessionStarted: (Long) -> Unit,
+    onOpenConfig: (Long) -> Unit,
     viewModel: FavoritesViewModel = viewModel(factory = FavoritesViewModel.Factory),
 ) {
     val subjectFilter by viewModel.subjectFilter.collectAsStateWithLifecycle()
@@ -109,9 +109,7 @@ fun FavoritesScreen(
                                 if (target == null) {
                                     startHint = hintText
                                 } else {
-                                    scope.launch {
-                                        viewModel.startPractice(target)?.let(onSessionStarted)
-                                    }
+                                    onOpenConfig(target)
                                 }
                             },
                             enabled = currentRows.isNotEmpty(),

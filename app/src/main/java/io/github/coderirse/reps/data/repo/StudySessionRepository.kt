@@ -66,19 +66,32 @@ class StudySessionRepository(private val db: RepsDatabase) {
         }
     }
 
-    /** CUSTOM paper: per-type quotas, sequential take or seeded sampling. */
-    suspend fun createCustomSession(
+    /**
+     * Configured paper from the practice-config page: per-type quotas over
+     * either the whole subject or a restricted pool (wrong-book / favorites),
+     * sequential take or seeded sampling.
+     */
+    suspend fun createConfiguredSession(
         subjectId: Long,
+        practiceType: String,
         quota: CustomQuota,
         order: CustomOrder,
         reciteMode: String,
         deadlineMinutes: Int,
+        poolIds: List<Long>? = null,
     ): Long = withContext(Dispatchers.IO) {
-        val pools = mapOf(
-            QuestionType.SINGLE to db.questionDao().getIdsByType(subjectId, QuestionType.SINGLE),
-            QuestionType.MULTI to db.questionDao().getIdsByType(subjectId, QuestionType.MULTI),
-            QuestionType.JUDGE to db.questionDao().getIdsByType(subjectId, QuestionType.JUDGE),
-        )
+        val pools = if (poolIds == null) {
+            mapOf(
+                QuestionType.SINGLE to db.questionDao().getIdsByType(subjectId, QuestionType.SINGLE),
+                QuestionType.MULTI to db.questionDao().getIdsByType(subjectId, QuestionType.MULTI),
+                QuestionType.JUDGE to db.questionDao().getIdsByType(subjectId, QuestionType.JUDGE),
+            )
+        } else {
+            getQuestionsByIds(poolIds)
+                .sortedBy { it.orderIndex }
+                .groupBy { it.type }
+                .mapValues { (_, questions) -> questions.map { it.id } }
+        }
         val seed = System.nanoTime()
         val pickedIds = PaperBuilder.pickIds(pools, quota, order, seed)
         return@withContext db.withTransaction {
@@ -86,7 +99,7 @@ class StudySessionRepository(private val db: RepsDatabase) {
             db.studySessionDao().upsert(
                 StudySessionEntity(
                     subjectId = subjectId,
-                    practiceType = io.github.coderirse.reps.data.db.entity.PracticeType.CUSTOM,
+                    practiceType = practiceType,
                     filterValue = null,
                     reciteMode = reciteMode,
                     questionIds = pickedIds.joinToString(","),
@@ -174,7 +187,57 @@ class StudySessionRepository(private val db: RepsDatabase) {
         correct
     }
 
-    /** Mode A browse marker; never downgrades an existing SELECTED record. */
+    /**
+     * Exam modes: record the pick without touching the wrong book. Same
+     * pre-read upsert discipline as [recordGradedAnswer] (unique-index
+     * conflict would otherwise silently drop the answer).
+     */
+    suspend fun recordExamAnswer(
+        session: StudySessionEntity,
+        question: QuestionEntity,
+        selectedRaw: String,
+        dwellMs: Long,
+    ) = withContext(Dispatchers.IO) {
+        val existing = db.sessionAnswerDao().getForQuestion(session.id, question.id)
+        db.sessionAnswerDao().upsert(
+            SessionAnswerEntity(
+                id = existing?.id ?: 0,
+                sessionId = session.id,
+                questionId = question.id,
+                actionType = AnswerActionType.EXAM_SELECTED,
+                selectedAnswer = Grading.normalizeSelected(question, selectedRaw),
+                isCorrect = Grading.isCorrect(question, selectedRaw),
+                answeredAt = System.currentTimeMillis(),
+                dwellMs = dwellMs,
+            ),
+        )
+    }
+
+    /**
+     * Exam submit: grade every recorded pick into the wrong book and flip the
+     * rows to SELECTED (idempotent — re-running finds no EXAM_SELECTED rows),
+     * then complete the session. One transaction, so a crash mid-submit never
+     * leaves a half-graded paper.
+     */
+    suspend fun gradeExamSession(sessionId: Long) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        db.withTransaction {
+            db.sessionAnswerDao().getBySession(sessionId)
+                .filter { it.actionType == AnswerActionType.EXAM_SELECTED && it.isCorrect != null }
+                .forEach { answer ->
+                    WrongBookRules.onAnswered(
+                        questionId = answer.questionId,
+                        current = db.wrongAnswerDao().getByQuestion(answer.questionId),
+                        correct = answer.isCorrect == true,
+                        now = now,
+                    )?.let { db.wrongAnswerDao().upsert(it) }
+                    db.sessionAnswerDao().upsert(answer.copy(actionType = AnswerActionType.SELECTED))
+                }
+            db.studySessionDao().markCompleted(sessionId)
+        }
+    }
+
+    /** Mode A browse marker; never downgrades an existing pick (SELECTED or EXAM_SELECTED). */
     suspend fun recordBrowsed(session: StudySessionEntity, questionId: Long) =
         withContext(Dispatchers.IO) {
             val existing = db.sessionAnswerDao().getForQuestion(session.id, questionId)
@@ -190,7 +253,7 @@ class StudySessionRepository(private val db: RepsDatabase) {
                         dwellMs = null,
                     ),
                 )
-            } else if (existing.actionType != AnswerActionType.SELECTED) {
+            } else if (existing.actionType == AnswerActionType.BROWSED) {
                 db.sessionAnswerDao().upsert(
                     existing.copy(answeredAt = System.currentTimeMillis()),
                 )

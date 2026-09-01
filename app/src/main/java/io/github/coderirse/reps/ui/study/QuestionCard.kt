@@ -60,6 +60,8 @@ fun QuestionCard(
     multiTemp: Set<String>,
     onOptionTap: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** 考试模式: 选中只标记不判色，交卷前可改答案. */
+    examMode: Boolean = false,
 ) {
     val success = successColor()
     val onSuccessContainer = onSuccessContainerColor()
@@ -101,8 +103,8 @@ fun QuestionCard(
         else -> setOf(question.correctAnswer)
     }
     val selectedLetters: Set<String> = when {
-        ui.graded && question.type == QuestionType.MULTI -> (ui.selectedAnswer ?: "").split(",").toSet()
-        ui.graded -> setOf(ui.selectedAnswer ?: "")
+        ui.answered && question.type == QuestionType.MULTI -> (ui.selectedAnswer ?: "").split(",").toSet()
+        ui.answered -> setOf(ui.selectedAnswer ?: "")
         else -> multiTemp
     }
 
@@ -138,6 +140,16 @@ fun QuestionCard(
             val isCorrectOption = value in correctLetters || letter in correctLetters
             val isSelected = value in selectedLetters || (letter != null && letter in selectedLetters)
             val visual = when {
+                // Exam: show the pick as plain selection, never right/wrong.
+                examMode && isSelected -> OptionVisual(
+                    value, letter, MaterialTheme.colorScheme.primaryContainer,
+                    MaterialTheme.colorScheme.onPrimaryContainer,
+                    clickable = mode == ReciteMode.TEST, checked = true,
+                )
+                examMode -> OptionVisual(
+                    value, letter, MaterialTheme.colorScheme.surfaceContainerLow,
+                    MaterialTheme.colorScheme.onSurface, clickable = mode == ReciteMode.TEST, checked = false,
+                )
                 ui.graded && isCorrectOption -> OptionVisual(
                     value, letter, successContainer, onSuccessContainer,
                     clickable = false, checked = isSelected,

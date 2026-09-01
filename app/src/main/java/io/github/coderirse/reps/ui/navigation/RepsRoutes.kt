@@ -37,6 +37,10 @@ data class ImportPreview(val encodedUri: String)
 @Serializable
 data class Study(val sessionId: Long)
 
+/** Practice-config page for one of the four practice modes. */
+@Serializable
+data class PracticeConfig(val subjectId: Long, val practiceType: String)
+
 @Serializable
 data class SessionResult(val sessionId: Long)
 

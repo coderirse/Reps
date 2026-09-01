@@ -32,7 +32,14 @@ import io.github.coderirse.reps.ui.theme.onWrongColor
 import io.github.coderirse.reps.ui.theme.successColor
 import io.github.coderirse.reps.ui.theme.wrongColor
 
-enum class CardCellStatus { UNTOUCHED, CORRECT, WRONG, BROWSED, CURRENT }
+enum class CardCellStatus { UNTOUCHED, CORRECT, WRONG, BROWSED, CURRENT, ANSWERED }
+
+/** Exam sessions never leak correctness: a recorded pick is just "answered". */
+fun cellStatusForExam(state: QuestionUiState?, isCurrent: Boolean): CardCellStatus = when {
+    isCurrent -> CardCellStatus.CURRENT
+    state?.answered == true -> CardCellStatus.ANSWERED
+    else -> CardCellStatus.UNTOUCHED
+}
 
 fun cellStatusFor(state: QuestionUiState?, isCurrent: Boolean): CardCellStatus = when {
     state?.graded == true && state.isCorrect == true -> CardCellStatus.CORRECT
@@ -52,6 +59,7 @@ fun AnswerCardSheet(
     questionIdAt: (Int) -> Long?,
     onJump: (Int) -> Unit,
     onDismiss: () -> Unit,
+    examMode: Boolean = false,
 ) {
     val correctColor = successColor()
     val wrongColor = wrongColor()
@@ -60,10 +68,15 @@ fun AnswerCardSheet(
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                LegendDot(correctColor, stringResource(R.string.card_legend_correct))
-                LegendDot(wrongColor, stringResource(R.string.card_legend_wrong))
-                LegendDot(browsedColor, stringResource(R.string.card_legend_browsed))
-                LegendDot(MaterialTheme.colorScheme.surfaceVariant, stringResource(R.string.card_legend_undo))
+                if (examMode) {
+                    LegendDot(MaterialTheme.colorScheme.primaryContainer, stringResource(R.string.card_legend_answered))
+                    LegendDot(MaterialTheme.colorScheme.surfaceVariant, stringResource(R.string.card_legend_undo))
+                } else {
+                    LegendDot(correctColor, stringResource(R.string.card_legend_correct))
+                    LegendDot(wrongColor, stringResource(R.string.card_legend_wrong))
+                    LegendDot(browsedColor, stringResource(R.string.card_legend_browsed))
+                    LegendDot(MaterialTheme.colorScheme.surfaceVariant, stringResource(R.string.card_legend_undo))
+                }
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(6),
@@ -74,12 +87,18 @@ fun AnswerCardSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(total) { index ->
-                    val status = cellStatusFor(questionIdAt(index)?.let { perQuestion[it] }, index == currentIndex)
+                    val questionState = questionIdAt(index)?.let { perQuestion[it] }
+                    val status = if (examMode) {
+                        cellStatusForExam(questionState, index == currentIndex)
+                    } else {
+                        cellStatusFor(questionState, index == currentIndex)
+                    }
                     val container = when (status) {
                         CardCellStatus.CORRECT -> correctColor
                         CardCellStatus.WRONG -> wrongColor
                         CardCellStatus.BROWSED -> browsedColor
                         CardCellStatus.CURRENT -> MaterialTheme.colorScheme.primaryContainer
+                        CardCellStatus.ANSWERED -> MaterialTheme.colorScheme.primaryContainer
                         CardCellStatus.UNTOUCHED -> MaterialTheme.colorScheme.surfaceVariant
                     }
                     val contentColor = when (status) {
@@ -93,6 +112,7 @@ fun AnswerCardSheet(
                         CardCellStatus.WRONG -> stringResource(R.string.card_legend_wrong)
                         CardCellStatus.BROWSED -> stringResource(R.string.card_legend_browsed)
                         CardCellStatus.CURRENT -> stringResource(R.string.card_cell_current)
+                        CardCellStatus.ANSWERED -> stringResource(R.string.card_legend_answered)
                         CardCellStatus.UNTOUCHED -> stringResource(R.string.card_legend_undo)
                     }
                     val cellLabel = stringResource(R.string.card_cell_label, index + 1, statusLabel)

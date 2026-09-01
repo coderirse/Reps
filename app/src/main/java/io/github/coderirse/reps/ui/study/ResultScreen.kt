@@ -103,6 +103,21 @@ fun ResultScreen(
                     WrongItemCard(index + 1, item)
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
+                // Post-submit answer review: every question with 你的/正确答案.
+                if (state.reviewItems.isNotEmpty()) {
+                    item {
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            stringResource(R.string.result_review_all),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    items(state.reviewItems.size) { index ->
+                        ReviewItemCard(index + 1, state.reviewItems[index])
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
                 item { Spacer(Modifier.height(16.dp)) }
             }
             Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) {
@@ -140,6 +155,39 @@ private fun WrongItemCard(index: Int, item: ResultWrongItem) {
             "${stringResource(R.string.result_your_answer)}：${item.yourAnswer}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,
+        )
+        Text(
+            "${stringResource(R.string.result_correct_answer)}：${item.correctAnswer}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun ReviewItemCard(index: Int, item: ResultReviewItem) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text(
+            "$index. ${item.content}",
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(Modifier.height(4.dp))
+        val statusRes = when (item.isCorrect) {
+            true -> R.string.result_review_correct
+            false -> R.string.result_review_wrong
+            null -> R.string.result_review_unanswered
+        }
+        val statusColor = when (item.isCorrect) {
+            true -> io.github.coderirse.reps.ui.theme.successColor()
+            false -> MaterialTheme.colorScheme.error
+            null -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Text(
+            stringResource(statusRes) + (item.yourAnswer?.let { "：$it" } ?: ""),
+            style = MaterialTheme.typography.bodySmall,
+            color = statusColor,
         )
         Text(
             "${stringResource(R.string.result_correct_answer)}：${item.correctAnswer}",

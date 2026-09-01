@@ -78,6 +78,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WrongBookScreen(
+    onOpenConfig: (Long) -> Unit,
     onSessionStarted: (Long) -> Unit,
     viewModel: WrongBookViewModel = viewModel(factory = WrongBookViewModel.Factory),
 ) {
@@ -211,14 +212,13 @@ fun WrongBookScreen(
                             onClick = {
                                 val target = subjectFilter
                                 if (target != null) {
-                                    scope.launch { viewModel.startPractice(target)?.let(onSessionStarted) }
+                                    onOpenConfig(target)
                                 } else {
                                     scope.launch {
                                         val counts = viewModel.getUnmasteredCountsBySubject()
                                         when {
                                             counts.isEmpty() -> hint = noUnmasteredHint
-                                            counts.size == 1 ->
-                                                viewModel.startPractice(counts.first().subjectId)?.let(onSessionStarted)
+                                            counts.size == 1 -> onOpenConfig(counts.first().subjectId)
                                             else -> subjectPicker = counts
                                         }
                                     }
@@ -246,7 +246,7 @@ fun WrongBookScreen(
                         TextButton(
                             onClick = {
                                 subjectPicker = null
-                                scope.launch { viewModel.startPractice(entry.subjectId)?.let(onSessionStarted) }
+                                onOpenConfig(entry.subjectId)
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {

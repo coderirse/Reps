@@ -173,6 +173,7 @@
     <string name="settings_clear_data">清除所有数据</string>
     <string name="settings_clear_data_description">删除全部题库、刷题进度、错题与收藏，操作不可恢复</string>
     <string name="settings_clear_done">已清除全部数据</string>
+    <string name="settings_section_about">关于</string>
     <string name="settings_about_reps">关于 Reps</string>
     <string name="dialog_clear_title">确认清除所有数据？</string>
     <string name="dialog_clear_text">将删除全部题库、刷题进度、错题与收藏，且无法恢复。</string>
@@ -217,4 +218,42 @@
     <string name="card_cell_current">当前题</string>
     <string name="practice_stepper_decrease">减少题数</string>
     <string name="practice_stepper_increase">增加题数</string>
+
+    <!-- Practice modes (new picker) -->
+    <string name="practice_recite">背题模式</string>
+    <string name="practice_recite_desc">看答案背题或先自测，答对自动下一题</string>
+    <string name="practice_exam">模拟考试</string>
+    <string name="practice_exam_desc">计时模考，交卷后统一出分看答案</string>
+    <string name="practice_wrong_book_desc">未掌握的错题集中重练</string>
+    <string name="practice_favorite_desc">收藏的重点题强化练习</string>
+
+    <!-- Practice config page -->
+    <string name="config_title">练习设置</string>
+    <string name="config_section_quota">题量</string>
+    <string name="config_section_timer">计时</string>
+    <string name="config_timer_enable">开启倒计时</string>
+    <string name="config_timer_minutes">时长 %1$d 分钟</string>
+    <string name="config_section_order">抽题顺序</string>
+    <string name="config_pool_empty">没有可练的题目</string>
+    <string name="config_start">开始练习</string>
+
+    <!-- Exam study -->
+    <string name="card_legend_answered">已作答</string>
+    <string name="result_review_all">全部题目与答案</string>
+    <string name="result_review_correct">回答正确</string>
+    <string name="result_review_wrong">回答错误</string>
+    <string name="result_review_unanswered">未作答</string>
+
+    <!-- Settings entries -->
+    <string name="settings_check_update">检查更新</string>
+    <string name="settings_check_update_desc">打开 GitHub Releases 查看最新版本</string>
+    <string name="settings_check_update_action">检查</string>
+    <string name="settings_contact_author">联系作者</string>
+    <string name="settings_contact_email">caeamer@163.com</string>
+    <string name="settings_theme_dialog_title">深色模式</string>
+    <string name="settings_font_dialog_title">字体大小</string>
+
+    <!-- Home footer -->
+    <string name="home_footer_slogan">One more rep.</string>
+    <string name="home_footer_copyright">Copyright © 2026 caeamer. All rights reserved.</string>
 </resources>
