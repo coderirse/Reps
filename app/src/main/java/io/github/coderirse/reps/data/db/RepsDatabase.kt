@@ -48,7 +48,7 @@ abstract class RepsDatabase : RoomDatabase() {
         private const val DB_NAME = "reps.db"
 
         /** v2: timed CUSTOM sessions need a persisted wall-clock deadline. */
-        private val MIGRATION_1_2 = object : Migration(1, 2) {
+        internal val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     "ALTER TABLE study_sessions ADD COLUMN deadlineAt INTEGER NOT NULL DEFAULT 0",
@@ -57,7 +57,7 @@ abstract class RepsDatabase : RoomDatabase() {
         }
 
         /** v3: sixth option (builtin bank cg_m_17) + question image assets. */
-        private val MIGRATION_2_3 = object : Migration(2, 3) {
+        internal val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE questions ADD COLUMN optionF TEXT")
                 db.execSQL("ALTER TABLE questions ADD COLUMN imageFile TEXT")
