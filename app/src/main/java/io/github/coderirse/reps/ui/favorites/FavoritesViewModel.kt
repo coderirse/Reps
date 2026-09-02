@@ -7,9 +7,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import io.github.coderirse.reps.RepsApplication
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.dao.FavoriteRow
-import io.github.coderirse.reps.data.db.entity.PracticeType
-import io.github.coderirse.reps.data.db.entity.ReciteMode
-import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -20,7 +17,6 @@ import kotlinx.coroutines.withContext
 
 class FavoritesViewModel(
     private val db: RepsDatabase,
-    private val sessionRepository: StudySessionRepository,
 ) : ViewModel() {
 
     // Filter lives in the VM so [rows] is a single Flow: creating the Flow in
@@ -42,37 +38,11 @@ class FavoritesViewModel(
         db.subjectDao().getById(subjectId)?.name.orEmpty()
     }
 
-    /** Re-entry guard against double taps: a second call returns null. */
-    private var starting = false
-
-    /** @return session id, or null when the subject has no favorites. */
-    suspend fun startPractice(subjectId: Long): Long? {
-        if (starting) return null
-        starting = true
-        return try {
-            withContext(Dispatchers.IO) {
-                val ids = db.favoriteDao().getFavoriteIdsForSubject(subjectId)
-                if (ids.isEmpty()) {
-                    null
-                } else {
-                    sessionRepository.createSession(
-                        subjectId = subjectId,
-                        practiceType = PracticeType.FAVORITE,
-                        reciteMode = ReciteMode.TEST,
-                        baseQuestionIds = ids,
-                    )
-                }
-            }
-        } finally {
-            starting = false
-        }
-    }
-
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as RepsApplication
-                FavoritesViewModel(app.database, app.studySessionRepository)
+                FavoritesViewModel(app.database)
             }
         }
     }

@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,6 +32,8 @@ fun AssetImage(
     modifier: Modifier = Modifier,
     // The image can be part of the question stem; never leave it unreadable.
     contentDescription: String? = stringResource(R.string.question_image_cd),
+    /** When set (question cards), cap the height and fit inside so options stay on screen. */
+    maxHeight: androidx.compose.ui.unit.Dp? = null,
 ) {
     val context = LocalContext.current
     var bitmap by remember(assetPath) { mutableStateOf<ImageBitmap?>(null) }
@@ -57,8 +60,9 @@ fun AssetImage(
             contentDescription = contentDescription,
             modifier = modifier
                 .fillMaxWidth()
+                .let { if (maxHeight != null) it.heightIn(max = maxHeight) else it }
                 .clickable { showFullscreen = true },
-            contentScale = ContentScale.FillWidth,
+            contentScale = if (maxHeight != null) ContentScale.Fit else ContentScale.FillWidth,
         )
         if (showFullscreen) {
             Dialog(onDismissRequest = { showFullscreen = false }) {

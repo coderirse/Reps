@@ -15,15 +15,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.toRoute
 import io.github.coderirse.reps.R
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
+import io.github.coderirse.reps.ui.home.PracticeConfigScreen
+import io.github.coderirse.reps.ui.history.HistoryScreen
+import io.github.coderirse.reps.ui.home.PracticeConfigViewModel
 import io.github.coderirse.reps.ui.import.ImportPreviewScreen
 import io.github.coderirse.reps.ui.navigation.About
 import io.github.coderirse.reps.ui.navigation.Favorites
+import io.github.coderirse.reps.ui.navigation.History
 import io.github.coderirse.reps.ui.navigation.Home
 import io.github.coderirse.reps.ui.navigation.ImportPreview
+import io.github.coderirse.reps.ui.navigation.PracticeConfig
 import io.github.coderirse.reps.ui.navigation.SessionResult
 import io.github.coderirse.reps.ui.navigation.Settings
 import io.github.coderirse.reps.ui.navigation.Study
@@ -87,7 +93,23 @@ fun RepsApp() {
                     onOpenImportPreview = { uri ->
                         navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
                     },
+                    onOpenPracticeConfig = { subjectId, practiceType ->
+                        navController.navigate(PracticeConfig(subjectId, practiceType))
+                    },
                     onStartSession = { sessionId -> navController.navigate(Study(sessionId)) },
+                )
+            }
+            composable<PracticeConfig> { entry ->
+                val args = entry.toRoute<PracticeConfig>()
+                PracticeConfigScreen(
+                    practiceType = args.practiceType,
+                    onBack = { navController.popBackStack() },
+                    onSessionStarted = { sessionId ->
+                        navController.navigate(Study(sessionId)) {
+                            popUpTo(entry.destination.id) { inclusive = true }
+                        }
+                    },
+                    viewModel = viewModel(factory = PracticeConfigViewModel.create(args.subjectId, args.practiceType)),
                 )
             }
             composable<ImportPreview> { entry ->
@@ -114,12 +136,6 @@ fun RepsApp() {
                             popUpTo(entry.destination.id) { inclusive = true }
                         }
                     },
-                    onSessionRestart = { newId ->
-                        navController.navigate(Study(newId)) {
-                            popUpTo(entry.destination.id) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
                 )
             }
             composable<SessionResult> { entry ->
@@ -130,10 +146,24 @@ fun RepsApp() {
                 )
             }
             composable<WrongBook> {
-                WrongBookScreen(onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) })
+                WrongBookScreen(
+                    onOpenConfig = { subjectId ->
+                        navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.WRONG_BOOK))
+                    },
+                    onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) },
+                )
             }
             composable<Favorites> {
-                FavoritesScreen(onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) })
+                FavoritesScreen(
+                    onOpenConfig = { subjectId ->
+                        navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.FAVORITE))
+                    },
+                )
+            }
+            composable<History> {
+                HistoryScreen(
+                    onOpenResult = { sessionId -> navController.navigate(SessionResult(sessionId)) },
+                )
             }
             composable<Settings> {
                 SettingsScreen(onOpenAbout = { navController.navigate(About) { launchSingleTop = true } })

@@ -7,19 +7,27 @@ import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
 object PracticeType {
+    /** 背题模式: two sub-modes (直接看答案 / 先作答) switchable mid-session. */
+    const val RECITE = "recite"
+
+    /** 模拟考试: answers and scores are revealed only after submitting. */
+    const val EXAM = "exam"
+    const val WRONG_BOOK = "wrong_book"
+    const val FAVORITE = "favorite"
+
+    // Legacy types kept so sessions recorded by older versions still restore
+    // and display; the picker no longer creates them.
     const val SEQUENTIAL = "sequential"
     const val RANDOM = "random"
     const val CATEGORY = "category"
     const val CUSTOM = "custom"
-    const val WRONG_BOOK = "wrong_book"
-    const val FAVORITE = "favorite"
 }
 
 object ReciteMode {
-    /** Mode A: answer + explanation shown on load, browse only. */
+    /** 背题·直接看答案: answer + explanation shown on load, browse only. */
     const val BROWSE = "mode_a_browse"
 
-    /** Mode B: answer hidden until the user picks an option. */
+    /** 背题·先作答: answer hidden until the user picks an option. */
     const val TEST = "mode_b_test"
 }
 

@@ -22,6 +22,14 @@ data class ResultWrongItem(
     val correctAnswer: String,
 )
 
+/** Full post-submit review row; isCorrect is null when the question was skipped. */
+data class ResultReviewItem(
+    val content: String,
+    val yourAnswer: String?,
+    val correctAnswer: String,
+    val isCorrect: Boolean?,
+)
+
 data class ResultUiState(
     val loading: Boolean = true,
     val answered: Int = 0,
@@ -29,6 +37,7 @@ data class ResultUiState(
     val total: Int = 0,
     val durationMs: Long = 0,
     val wrongItems: List<ResultWrongItem> = emptyList(),
+    val reviewItems: List<ResultReviewItem> = emptyList(),
 )
 
 class ResultViewModel(
@@ -57,6 +66,22 @@ class ResultViewModel(
             val wrongItems = graded.filter { it.isCorrect == false }.mapNotNull { answer ->
                 questions[answer.questionId]?.let { q -> answer.toWrongItem(q) }
             }
+            val answeredByQuestion = graded.associateBy { it.questionId }
+            // Every question in paper order, so the post-submit review shows
+            // 你的答案/正确答案 for all, including skipped ones.
+            val reviewItems = session.questionIds.split(',')
+                .mapNotNull { it.toLongOrNull() }
+                .mapNotNull { qid ->
+                    questions[qid]?.let { q ->
+                        val answer = answeredByQuestion[qid]
+                        ResultReviewItem(
+                            content = q.content,
+                            yourAnswer = answer?.selectedAnswer,
+                            correctAnswer = q.correctAnswer,
+                            isCorrect = answer?.isCorrect,
+                        )
+                    }
+                }
             _state.update {
                 it.copy(
                     loading = false,
@@ -68,6 +93,7 @@ class ResultViewModel(
                     // include hours the app spent in the background.
                     durationMs = session.accumulatedMs.coerceAtLeast(0),
                     wrongItems = wrongItems,
+                    reviewItems = reviewItems,
                 )
             }
         }

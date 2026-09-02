@@ -77,33 +77,6 @@ class WrongBookViewModel(
         }
     }
 
-    /**
-     * Starts a wrong-book practice for one subject (its session needs a single
-     * subject; the UI asks the user to pick a subject when multiple exist).
-     * @return session id, or null when the subject has no unmastered wrongs
-     */
-    suspend fun startPractice(subjectId: Long): Long? {
-        if (starting) return null
-        starting = true
-        return try {
-            withContext(Dispatchers.IO) {
-                val ids = db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
-                if (ids.isEmpty()) {
-                    null
-                } else {
-                    sessionRepository.createSession(
-                        subjectId = subjectId,
-                        practiceType = PracticeType.WRONG_BOOK,
-                        reciteMode = ReciteMode.TEST,
-                        baseQuestionIds = ids,
-                    )
-                }
-            }
-        } finally {
-            starting = false
-        }
-    }
-
     suspend fun getSubjectName(subjectId: Long): String = withContext(Dispatchers.IO) {
         db.subjectDao().getById(subjectId)?.name.orEmpty()
     }

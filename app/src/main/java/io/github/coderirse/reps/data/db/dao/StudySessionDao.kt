@@ -3,8 +3,17 @@ package io.github.coderirse.reps.data.db.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Embedded
 import io.github.coderirse.reps.data.db.entity.StudySessionEntity
 import kotlinx.coroutines.flow.Flow
+
+/** History row: a completed session with its subject name and graded stats. */
+data class HistoryRow(
+    @Embedded val session: StudySessionEntity,
+    val subjectName: String,
+    val answered: Int,
+    val correct: Int,
+)
 
 @Dao
 interface StudySessionDao {
@@ -44,6 +53,10 @@ interface StudySessionDao {
             "status = 0, startedAt = :now, lastActiveAt = :now, accumulatedMs = 0 WHERE id = :id",
     )
     suspend fun resetForRestart(id: Long, now: Long)
+
+    /** Completed sessions, newest first, with per-session graded stats. */
+    @Query("SELECT s.*, sub.name AS subjectName, (SELECT COUNT(*) FROM session_answers sa WHERE sa.sessionId = s.id AND sa.actionType = 'selected') AS answered, (SELECT COUNT(*) FROM session_answers sa WHERE sa.sessionId = s.id AND sa.actionType = 'selected' AND sa.isCorrect = 1) AS correct FROM study_sessions s JOIN subjects sub ON sub.id = s.subjectId WHERE s.status = 1 ORDER BY s.lastActiveAt DESC")
+    fun observeHistory(): Flow<List<HistoryRow>>
 
     /** Past the 7-day restore window -> mark EXPIRED so it never resurfaces. */
     @Query("UPDATE study_sessions SET status = 2 WHERE status = 0 AND lastActiveAt < :cutoffEpochMs")

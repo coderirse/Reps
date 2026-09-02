@@ -78,6 +78,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WrongBookScreen(
+    onOpenConfig: (Long) -> Unit,
     onSessionStarted: (Long) -> Unit,
     viewModel: WrongBookViewModel = viewModel(factory = WrongBookViewModel.Factory),
 ) {
@@ -206,32 +207,32 @@ fun WrongBookScreen(
                             onToggle = { viewModel.setMastered(row.question.id, true) },
                         )
                     }
-                    item {
-                        Button(
-                            onClick = {
-                                val target = subjectFilter
-                                if (target != null) {
-                                    scope.launch { viewModel.startPractice(target)?.let(onSessionStarted) }
-                                } else {
-                                    scope.launch {
-                                        val counts = viewModel.getUnmasteredCountsBySubject()
-                                        when {
-                                            counts.isEmpty() -> hint = noUnmasteredHint
-                                            counts.size == 1 ->
-                                                viewModel.startPractice(counts.first().subjectId)?.let(onSessionStarted)
-                                            else -> subjectPicker = counts
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = filtered.isNotEmpty(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) { Text(stringResource(R.string.wrong_book_start_practice)) }
-                    }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
+            }
+            // Pinned to the bottom: long wrong lists used to bury this button.
+            if (!showMastered) {
+                Button(
+                    onClick = {
+                        val target = subjectFilter
+                        if (target != null) {
+                            onOpenConfig(target)
+                        } else {
+                            scope.launch {
+                                val counts = viewModel.getUnmasteredCountsBySubject()
+                                when {
+                                    counts.isEmpty() -> hint = noUnmasteredHint
+                                    counts.size == 1 -> onOpenConfig(counts.first().subjectId)
+                                    else -> subjectPicker = counts
+                                }
+                            }
+                        }
+                    },
+                    enabled = filtered.isNotEmpty(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text(stringResource(R.string.wrong_book_start_practice)) }
             }
         }
     }
@@ -246,7 +247,7 @@ fun WrongBookScreen(
                         TextButton(
                             onClick = {
                                 subjectPicker = null
-                                scope.launch { viewModel.startPractice(entry.subjectId)?.let(onSessionStarted) }
+                                onOpenConfig(entry.subjectId)
                             },
                             modifier = Modifier.fillMaxWidth(),
                         ) {

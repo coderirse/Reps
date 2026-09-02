@@ -7,13 +7,10 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.room.withTransaction
 import io.github.coderirse.reps.RepsApplication
-import io.github.coderirse.reps.core.CustomOrder
-import io.github.coderirse.reps.core.CustomQuota
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.entity.FavoriteEntity
 import io.github.coderirse.reps.data.db.entity.NoteEntity
 import io.github.coderirse.reps.data.db.entity.QuestionEntity
-import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.SessionAnswerEntity
 import io.github.coderirse.reps.data.db.entity.StudySessionEntity
 import io.github.coderirse.reps.data.db.entity.SubjectEntity
@@ -147,75 +144,7 @@ class HomeViewModel(
         viewModelScope.launch { settingsRepository.setAskRestoreSession(ask) }
     }
 
-    suspend fun countsByType(subjectId: Long): Map<String, Int> = withContext(Dispatchers.IO) {
-        mapOf(
-            QuestionType.SINGLE to db.questionDao().countByType(subjectId, QuestionType.SINGLE),
-            QuestionType.MULTI to db.questionDao().countByType(subjectId, QuestionType.MULTI),
-            QuestionType.JUDGE to db.questionDao().countByType(subjectId, QuestionType.JUDGE),
-        )
-    }
-
-    suspend fun chapterCounts(subjectId: Long) = withContext(Dispatchers.IO) {
-        db.questionDao().getChapterCounts(subjectId)
-    }
-
-    suspend fun categoryCounts(subjectId: Long) = withContext(Dispatchers.IO) {
-        db.questionDao().getCategoryCounts(subjectId)
-    }
-
-    /**
-     * Creates the session and returns its id. One ACTIVE session per subject:
-     * the previous one is completed on entry.
-     * @return session id, or null when there is nothing to practice
-     * (empty wrong-book/favorites/filter result) or the custom quota is invalid.
-     */
-    suspend fun startPractice(
-        subjectId: Long,
-        practiceType: String,
-        reciteMode: String,
-        filterDimension: String? = null,
-        filterValue: String? = null,
-        shuffle: Boolean = false,
-        customQuota: CustomQuota? = null,
-        customOrder: CustomOrder = CustomOrder.SEQUENTIAL,
-        deadlineMinutes: Int = 0,
-    ): Long? {
-        if (customQuota != null) {
-            return runCatching {
-                sessionRepository.createCustomSession(
-                    subjectId, customQuota, customOrder, reciteMode, deadlineMinutes,
-                )
-            }.getOrNull()
-        }
-        val baseIds = withContext(Dispatchers.IO) {
-            when (practiceType) {
-                PRACTICE_WRONG_BOOK -> db.wrongAnswerDao().getUnmasteredIdsForSubject(subjectId)
-                PRACTICE_FAVORITE -> db.favoriteDao().getFavoriteIdsForSubject(subjectId)
-                else -> when (filterDimension) {
-                    FILTER_CHAPTER -> db.questionDao().getIdsByChapter(subjectId, filterValue.orEmpty())
-                    FILTER_CATEGORY -> db.questionDao().getIdsByCategory(subjectId, filterValue.orEmpty())
-                    else -> db.questionDao().getIdsBySubject(subjectId)
-                }
-            }
-        }
-        if (baseIds.isEmpty()) return null
-        return sessionRepository.createSession(
-            subjectId = subjectId,
-            practiceType = practiceType,
-            filterValue = filterValue,
-            reciteMode = reciteMode,
-            baseQuestionIds = baseIds,
-            shuffle = shuffle,
-            deadlineMinutes = deadlineMinutes,
-        )
-    }
-
     companion object {
-        const val FILTER_CHAPTER = "chapter"
-        const val FILTER_CATEGORY = "category"
-        const val FILTER_TARGET = "__filter_target__"
-        const val PRACTICE_WRONG_BOOK = "wrong_book"
-        const val PRACTICE_FAVORITE = "favorite"
         const val RESTORE_WINDOW_MS = 7L * 24 * 60 * 60 * 1000
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {

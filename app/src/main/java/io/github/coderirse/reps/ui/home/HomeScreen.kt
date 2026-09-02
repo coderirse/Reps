@@ -63,6 +63,7 @@ fun HomeScreen(
     snackbarMessage: String?,
     onSnackbarShown: () -> Unit,
     onOpenImportPreview: (android.net.Uri) -> Unit,
+    onOpenPracticeConfig: (Long, String) -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
 ) {
@@ -123,6 +124,7 @@ fun HomeScreen(
                 builtinSubjectId = settings.builtinSubjectId,
                 practicedCounts = practicedCounts,
                 onImportClick = { filePicker.launch(arrayOf("*/*")) },
+                onOpenPracticeConfig = onOpenPracticeConfig,
                 onStartSession = onStartSession,
                 viewModel = viewModel,
                 snackbarHostState = snackbarHostState,
@@ -213,6 +215,7 @@ private fun SubjectList(
     builtinSubjectId: Long,
     practicedCounts: Map<Long, Int>,
     onImportClick: () -> Unit,
+    onOpenPracticeConfig: (Long, String) -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel,
     snackbarHostState: SnackbarHostState,
@@ -220,21 +223,13 @@ private fun SubjectList(
 ) {
     var sheetSubject by remember { mutableStateOf<SubjectEntity?>(null) }
     var deleteCandidate by remember { mutableStateOf<SubjectEntity?>(null) }
-    var chapterCounts by remember { mutableStateOf(emptyList<Pair<String, Int>>()) }
-    var categoryCounts by remember { mutableStateOf(emptyList<Pair<String, Int>>()) }
-    var countsByType by remember { mutableStateOf(emptyMap<String, Int>()) }
     var resumeSession by remember { mutableStateOf<io.github.coderirse.reps.data.db.entity.StudySessionEntity?>(null) }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val context = androidx.compose.ui.platform.LocalContext.current
     val undoLabel = stringResource(R.string.action_undo)
-    val noQuestionsHint = stringResource(R.string.home_no_questions_hint)
 
-    // Load sheet context data whenever a subject is tapped.
     LaunchedEffect(sheetSubject?.id) {
         sheetSubject?.let { subject ->
-            chapterCounts = viewModel.chapterCounts(subject.id).map { it.value to it.count }
-            categoryCounts = viewModel.categoryCounts(subject.id).map { it.value to it.count }
-            countsByType = viewModel.countsByType(subject.id)
             resumeSession = viewModel.getActiveSession(subject.id)
         }
     }
@@ -265,6 +260,7 @@ private fun SubjectList(
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) { Text(stringResource(R.string.home_import_button)) }
             }
+            item { HomeFooter() }
             item { Spacer(Modifier.height(16.dp)) }
         }
     }
@@ -272,35 +268,14 @@ private fun SubjectList(
     sheetSubject?.let { subject ->
         PracticeSheet(
             subjectName = subject.name,
-            chapterCounts = chapterCounts,
-            categoryCounts = categoryCounts,
-            countsByType = countsByType,
             resumeSession = resumeSession,
             onResume = { sessionId ->
                 sheetSubject = null
                 onStartSession(sessionId)
             },
-            onStart = { request ->
-                val subjectId = subject.id
+            onOpenConfig = { practiceType ->
                 sheetSubject = null
-                scope.launch {
-                    val sessionId = viewModel.startPractice(
-                        subjectId = subjectId,
-                        practiceType = request.practiceType,
-                        reciteMode = request.reciteMode,
-                        filterDimension = request.filterDimension,
-                        filterValue = request.filterValue,
-                        shuffle = request.shuffle,
-                        customQuota = request.customQuota,
-                        customOrder = request.customOrder,
-                        deadlineMinutes = request.deadlineMinutes,
-                    )
-                    if (sessionId != null) {
-                        onStartSession(sessionId)
-                    } else {
-                        snackbarHostState.showSnackbar(noQuestionsHint)
-                    }
-                }
+                onOpenPracticeConfig(subject.id, practiceType)
             },
             onDismiss = { sheetSubject = null },
         )
@@ -333,6 +308,26 @@ private fun SubjectList(
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
+        )
+    }
+}
+
+@Composable
+private fun HomeFooter() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            stringResource(R.string.home_footer_slogan),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            stringResource(R.string.home_footer_copyright),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
