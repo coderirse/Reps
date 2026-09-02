@@ -207,31 +207,32 @@ fun WrongBookScreen(
                             onToggle = { viewModel.setMastered(row.question.id, true) },
                         )
                     }
-                    item {
-                        Button(
-                            onClick = {
-                                val target = subjectFilter
-                                if (target != null) {
-                                    onOpenConfig(target)
-                                } else {
-                                    scope.launch {
-                                        val counts = viewModel.getUnmasteredCountsBySubject()
-                                        when {
-                                            counts.isEmpty() -> hint = noUnmasteredHint
-                                            counts.size == 1 -> onOpenConfig(counts.first().subjectId)
-                                            else -> subjectPicker = counts
-                                        }
-                                    }
-                                }
-                            },
-                            enabled = filtered.isNotEmpty(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) { Text(stringResource(R.string.wrong_book_start_practice)) }
-                    }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
+            }
+            // Pinned to the bottom: long wrong lists used to bury this button.
+            if (!showMastered) {
+                Button(
+                    onClick = {
+                        val target = subjectFilter
+                        if (target != null) {
+                            onOpenConfig(target)
+                        } else {
+                            scope.launch {
+                                val counts = viewModel.getUnmasteredCountsBySubject()
+                                when {
+                                    counts.isEmpty() -> hint = noUnmasteredHint
+                                    counts.size == 1 -> onOpenConfig(counts.first().subjectId)
+                                    else -> subjectPicker = counts
+                                }
+                            }
+                        }
+                    },
+                    enabled = filtered.isNotEmpty(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text(stringResource(R.string.wrong_book_start_practice)) }
             }
         }
     }

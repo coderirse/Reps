@@ -102,24 +102,24 @@ fun FavoritesScreen(
                     items(currentRows, key = { it.question.id }) { row ->
                         FavoriteItem(row)
                     }
-                    item {
-                        Button(
-                            onClick = {
-                                val target = subjectFilter ?: subjectIds.singleOrNull()
-                                if (target == null) {
-                                    startHint = hintText
-                                } else {
-                                    onOpenConfig(target)
-                                }
-                            },
-                            enabled = currentRows.isNotEmpty(),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                        ) { Text(stringResource(R.string.favorites_start_practice)) }
-                    }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
+            }
+            // Pinned to the bottom instead of scrolling with the list.
+            if (!currentRows.isNullOrEmpty()) {
+                Button(
+                    onClick = {
+                        val target = subjectFilter ?: subjectIds.singleOrNull()
+                        if (target == null) {
+                            startHint = hintText
+                        } else {
+                            onOpenConfig(target)
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) { Text(stringResource(R.string.favorites_start_practice)) }
             }
         }
     }

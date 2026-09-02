@@ -21,10 +21,12 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigScreen
+import io.github.coderirse.reps.ui.history.HistoryScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigViewModel
 import io.github.coderirse.reps.ui.import.ImportPreviewScreen
 import io.github.coderirse.reps.ui.navigation.About
 import io.github.coderirse.reps.ui.navigation.Favorites
+import io.github.coderirse.reps.ui.navigation.History
 import io.github.coderirse.reps.ui.navigation.Home
 import io.github.coderirse.reps.ui.navigation.ImportPreview
 import io.github.coderirse.reps.ui.navigation.PracticeConfig
@@ -156,6 +158,11 @@ fun RepsApp() {
                     onOpenConfig = { subjectId ->
                         navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.FAVORITE))
                     },
+                )
+            }
+            composable<History> {
+                HistoryScreen(
+                    onOpenResult = { sessionId -> navController.navigate(SessionResult(sessionId)) },
                 )
             }
             composable<Settings> {

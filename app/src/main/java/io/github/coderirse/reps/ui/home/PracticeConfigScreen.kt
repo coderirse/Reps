@@ -334,7 +334,7 @@ private fun NumberInputDialog(
                 onClick = {
                     text.toIntOrNull()?.let { onConfirm(it.coerceIn(min, max)) } ?: onDismiss()
                 },
-            ) { Text(stringResource(R.string.dialog_clear_confirm)) }
+            ) { Text(stringResource(R.string.action_confirm)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Upload
@@ -77,6 +78,7 @@ fun SettingsScreen(
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
     var showThemeDialog by rememberSaveable { mutableStateOf(false) }
     var showFontDialog by rememberSaveable { mutableStateOf(false) }
+    var showQrDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -214,6 +216,12 @@ fun SettingsScreen(
                 },
             )
             SettingRow(
+                icon = Icons.Filled.QrCode2,
+                title = stringResource(R.string.settings_feedback),
+                subtitle = stringResource(R.string.settings_feedback_desc),
+                onClick = { showQrDialog = true },
+            )
+            SettingRow(
                 icon = Icons.Filled.Info,
                 title = stringResource(R.string.settings_about_reps),
                 subtitle = stringResource(R.string.about_version, versionName),
@@ -221,6 +229,32 @@ fun SettingsScreen(
             )
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showQrDialog) {
+        AlertDialog(
+            onDismissRequest = { showQrDialog = false },
+            title = { Text(stringResource(R.string.settings_feedback)) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(R.drawable.qq_qr),
+                        contentDescription = stringResource(R.string.settings_feedback_desc),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(R.string.settings_feedback_qq),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showQrDialog = false }) {
+                    Text(stringResource(R.string.action_confirm))
+                }
+            },
+        )
     }
 
     if (showThemeDialog) {

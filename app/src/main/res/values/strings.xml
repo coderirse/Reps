@@ -265,4 +265,16 @@
     <string name="pool_favorite">收藏</string>
     <string name="config_quota_input_title">输入题数</string>
     <string name="config_quota_input_hint">0 – %1$d</string>
+
+    <!-- History -->
+    <string name="tab_history">历史</string>
+    <string name="history_empty_title">还没有刷题记录</string>
+    <string name="history_empty_description">交卷后的每场练习都会记在这里</string>
+    <string name="history_stat">答对 %1$d/%2$d · 用时 %3$s</string>
+
+    <!-- Feedback -->
+    <string name="settings_feedback">反馈问题 / 贡献题库</string>
+    <string name="settings_feedback_desc">QQ 扫码联系作者</string>
+    <string name="settings_feedback_qq">QQ：87452310</string>
+    <string name="action_confirm">确认</string>
 </resources>
