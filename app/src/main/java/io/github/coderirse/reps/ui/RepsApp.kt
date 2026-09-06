@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -60,13 +61,7 @@ fun RepsApp() {
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateTopLevel(tab.route)
                             },
                             icon = {
                                 Icon(
@@ -151,6 +146,7 @@ fun RepsApp() {
                         navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.WRONG_BOOK))
                     },
                     onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) },
+                    onGoPractice = { navController.navigateTopLevel(Home) },
                 )
             }
             composable<Favorites> {
@@ -158,11 +154,13 @@ fun RepsApp() {
                     onOpenConfig = { subjectId ->
                         navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.FAVORITE))
                     },
+                    onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) },
                 )
             }
             composable<History> {
                 HistoryScreen(
                     onOpenResult = { sessionId -> navController.navigate(SessionResult(sessionId)) },
+                    onGoPractice = { navController.navigateTopLevel(Home) },
                 )
             }
             composable<Settings> {
@@ -174,3 +172,12 @@ fun RepsApp() {
 }
 
 private const val IMPORT_MESSAGE_KEY = "import_message"
+
+/** Bottom-bar style tab switch, shared by the empty-state "去刷题" shortcuts. */
+private fun NavController.navigateTopLevel(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}

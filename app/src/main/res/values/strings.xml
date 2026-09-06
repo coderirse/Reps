@@ -92,6 +92,10 @@
     <string name="wrong_book_tab_mastered">已掌握（%1$d）</string>
     <string name="favorites_start_practice">开始收藏练习</string>
     <string name="favorites_pick_subject_hint">收藏跨多个题库，请先在上方选择一个题库</string>
+    <string name="favorites_pick_subject">选择要重练的题库</string>
+    <string name="favorites_detail_title">收藏详情</string>
+    <string name="favorite_remove">取消收藏</string>
+    <string name="action_go_practice">去刷题</string>
 
     <!-- Study additions -->
     <string name="study_favorite">收藏</string>
@@ -236,13 +240,19 @@
     <string name="config_section_order">抽题顺序</string>
     <string name="config_pool_empty">没有可练的题目</string>
     <string name="config_start">开始练习</string>
+    <string name="config_start_failed">开始失败，请重试</string>
 
     <!-- Exam study -->
     <string name="card_legend_answered">已作答</string>
+    <string name="card_legend_flagged">已标记</string>
+    <string name="study_flag">标记本题</string>
+    <string name="study_unflag">取消标记</string>
     <string name="result_review_all">全部题目与答案</string>
     <string name="result_review_correct">回答正确</string>
     <string name="result_review_wrong">回答错误</string>
     <string name="result_review_unanswered">未作答</string>
+    <string name="result_review_expand">展开查看选项与解析</string>
+    <string name="result_review_collapse">收起</string>
 
     <!-- Settings entries -->
     <string name="settings_check_update">检查更新</string>

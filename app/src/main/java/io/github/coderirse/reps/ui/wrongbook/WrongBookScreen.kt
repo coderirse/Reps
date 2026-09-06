@@ -1,6 +1,5 @@
 package io.github.coderirse.reps.ui.wrongbook
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -29,9 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -47,7 +43,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -57,13 +52,7 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.db.dao.SubjectWrongCount
 import io.github.coderirse.reps.data.db.dao.WrongBookRow
 import io.github.coderirse.reps.data.db.entity.QuestionEntity
-import io.github.coderirse.reps.data.db.entity.QuestionType
-import io.github.coderirse.reps.ui.components.AssetImage
 import io.github.coderirse.reps.ui.components.EmptyState
-import io.github.coderirse.reps.ui.import.typeLabel
-import io.github.coderirse.reps.ui.theme.onSuccessContainerColor
-import io.github.coderirse.reps.ui.theme.successColor
-import io.github.coderirse.reps.ui.theme.successContainerColor
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,6 +69,7 @@ import java.util.Locale
 fun WrongBookScreen(
     onOpenConfig: (Long) -> Unit,
     onSessionStarted: (Long) -> Unit,
+    onGoPractice: () -> Unit = {},
     viewModel: WrongBookViewModel = viewModel(factory = WrongBookViewModel.Factory),
 ) {
     val unmastered by viewModel.unmastered.collectAsStateWithLifecycle(initialValue = null)
@@ -181,6 +171,9 @@ fun WrongBookScreen(
                     icon = Icons.Outlined.CheckCircle,
                     title = stringResource(R.string.wrong_book_empty_title),
                     description = stringResource(R.string.wrong_book_empty_description),
+                    action = {
+                        Button(onClick = onGoPractice) { Text(stringResource(R.string.action_go_practice)) }
+                    },
                 )
                 showMastered -> LazyColumn(Modifier.weight(1f)) {
                     items(
@@ -278,22 +271,55 @@ fun WrongBookScreen(
     }
 
     detailRow?.let { row ->
-        WrongQuestionDetailSheet(
+        io.github.coderirse.reps.ui.components.QuestionDetailSheet(
             question = detailQuestion ?: row.question,
-            wrongCount = row.wrongCount,
-            lastWrongText = dateFormat.format(Date(row.lastWrongAt)),
-            mastered = row.mastered,
+            title = stringResource(R.string.wrong_book_detail_title),
+            onDismiss = { detailRow = null },
+            meta = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.wrong_book_wrong_count, row.wrongCount),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        stringResource(R.string.wrong_book_last_wrong, dateFormat.format(Date(row.lastWrongAt))),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+            },
             initialNote = detailNote,
             onSaveNote = { viewModel.saveNote(row.question.id, it) },
-            onToggleMastered = {
-                viewModel.setMastered(row.question.id, !row.mastered)
-                detailRow = null
+            actions = {
+                TextButton(onClick = {
+                    viewModel.setMastered(row.question.id, !row.mastered)
+                    detailRow = null
+                }, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        imageVector = if (row.mastered) Icons.Outlined.CheckCircle else Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = if (row.mastered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(6.dp))
+                    Text(
+                        stringResource(
+                            if (row.mastered) R.string.wrong_book_unmark_mastered else R.string.wrong_book_mark_mastered,
+                        ),
+                    )
+                }
+                Button(onClick = {
+                    detailRow = null
+                    scope.launch { viewModel.startSingleQuestionPractice(row.question.id)?.let(onSessionStarted) }
+                }, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.wrong_book_practice_this))
+                }
             },
-            onPracticeThis = {
-                detailRow = null
-                scope.launch { viewModel.startSingleQuestionPractice(row.question.id)?.let(onSessionStarted) }
-            },
-            onDismiss = { detailRow = null },
         )
     }
 }
@@ -390,200 +416,4 @@ private fun WrongBookItem(
     }
 }
 
-/** Read-only question view: options, correct answer, explanation and note. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun WrongQuestionDetailSheet(
-    question: QuestionEntity,
-    wrongCount: Int,
-    lastWrongText: String,
-    mastered: Boolean,
-    /** null while the note is still loading; the editor renders only when loaded. */
-    initialNote: String?,
-    onSaveNote: (String) -> Unit,
-    onToggleMastered: () -> Unit,
-    onPracticeThis: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val success = successColor()
-    val successContainer = successContainerColor()
-    val onSuccessContainer = onSuccessContainerColor()
-
-    val options: List<Pair<String?, String>> = when (question.type) {
-        // Judge labels double as stored answer values (see judge_option_true).
-        QuestionType.JUDGE -> listOf(
-            null to stringResource(R.string.judge_option_true),
-            null to stringResource(R.string.judge_option_false),
-        )
-        else -> listOfNotNull(
-            question.optionA?.let { "A" to it },
-            question.optionB?.let { "B" to it },
-            question.optionC?.let { "C" to it },
-            question.optionD?.let { "D" to it },
-            question.optionE?.let { "E" to it },
-            question.optionF?.let { "F" to it },
-        )
-    }
-    val correctLetters: Set<String> = when (question.type) {
-        QuestionType.MULTI -> question.correctAnswer.split(",").toSet()
-        else -> setOf(question.correctAnswer)
-    }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
-        ) {
-            Text(
-                stringResource(R.string.wrong_book_detail_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    typeLabel(question.type),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                question.chapter?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                question.category?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.wrong_book_wrong_count, wrongCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-                Text(
-                    stringResource(R.string.wrong_book_last_wrong, lastWrongText),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(question.content, style = MaterialTheme.typography.titleMedium)
-            question.imageFile?.let { path ->
-                Spacer(Modifier.height(12.dp))
-                AssetImage(assetPath = path)
-            }
-            Spacer(Modifier.height(12.dp))
-
-            options.forEach { (letter, text) ->
-                val value = letter ?: text
-                val isCorrect = value in correctLetters || (letter != null && letter in correctLetters)
-                DetailOptionRow(
-                    letter = letter,
-                    text = text,
-                    containerColor = if (isCorrect) successContainer else MaterialTheme.colorScheme.surfaceContainerLow,
-                    contentColor = if (isCorrect) {
-                        onSuccessContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(
-                        stringResource(R.string.study_answer_label, question.correctAnswer),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = success,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        question.explanation?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.study_no_explanation),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            // Gate on the async load: initializing the field with "" before the
-            // real note arrives would show an empty editor, and saving then
-            // silently deleted the existing note (review H4).
-            initialNote?.let { loadedNote ->
-                var note by remember(question.id) { mutableStateOf(loadedNote) }
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text(stringResource(R.string.study_note)) },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { onSaveNote(note) }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.study_note_save))
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextButton(onClick = onToggleMastered, modifier = Modifier.weight(1f)) {
-                    Icon(
-                        imageVector = if (mastered) Icons.Outlined.CheckCircle else Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = if (mastered) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.size(6.dp))
-                    Text(
-                        stringResource(
-                            if (mastered) R.string.wrong_book_unmark_mastered else R.string.wrong_book_mark_mastered,
-                        ),
-                    )
-                }
-                Button(onClick = onPracticeThis, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.wrong_book_practice_this))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetailOptionRow(
-    letter: String?,
-    text: String,
-    containerColor: Color,
-    contentColor: Color,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(containerColor, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        letter?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(end = 8.dp),
-            )
-        }
-        Text(text, style = MaterialTheme.typography.bodyLarge, color = contentColor)
-    }
-}
+/** Read-only detail moved to the shared [io.github.coderirse.reps.ui.components.QuestionDetailSheet]. */

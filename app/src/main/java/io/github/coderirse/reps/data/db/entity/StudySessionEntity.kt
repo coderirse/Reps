@@ -35,6 +35,13 @@ object SessionStatus {
     const val ACTIVE = 0
     const val COMPLETED = 1
     const val EXPIRED = 2
+
+    /**
+     * Session displaced by a new one on the same subject before it was
+     * submitted (completeActiveForSubject). Kept out of the history tab —
+     * the user never submitted this paper, so it must not read as a result.
+     */
+    const val ABANDONED = 3
 }
 
 @Entity(

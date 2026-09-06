@@ -20,6 +20,7 @@ data class ResultWrongItem(
     val content: String,
     val yourAnswer: String,
     val correctAnswer: String,
+    val question: QuestionEntity,
 )
 
 /** Full post-submit review row; isCorrect is null when the question was skipped. */
@@ -28,6 +29,7 @@ data class ResultReviewItem(
     val yourAnswer: String?,
     val correctAnswer: String,
     val isCorrect: Boolean?,
+    val question: QuestionEntity,
 )
 
 data class ResultUiState(
@@ -59,6 +61,12 @@ class ResultViewModel(
                 // Defensive: a result page must never leave an ACTIVE session behind.
                 sessionRepository.markCompleted(session.id)
             }
+            // Review H1: submit()'s grading transaction runs in the StudyViewModel
+            // scope, which navigation tears down — a fast leave after 交卷 can
+            // cancel it mid-write. gradeExamSession is idempotent (only untouched
+            // EXAM_SELECTED rows are processed), so rerunning it here finishes
+            // any half-done grading before the stats below are read.
+            sessionRepository.gradeExamSession(session.id)
             val answers = sessionRepository.getAnswers(sessionId)
                 .filter { it.actionType == AnswerActionType.SELECTED }
             val questions = sessionRepository.getQuestions(session).associateBy { it.id }
@@ -79,6 +87,7 @@ class ResultViewModel(
                             yourAnswer = answer?.selectedAnswer,
                             correctAnswer = q.correctAnswer,
                             isCorrect = answer?.isCorrect,
+                            question = q,
                         )
                     }
                 }
@@ -104,6 +113,7 @@ class ResultViewModel(
             content = q.content,
             yourAnswer = selectedAnswer ?: "—",
             correctAnswer = q.correctAnswer,
+            question = q,
         )
 
     companion object {
