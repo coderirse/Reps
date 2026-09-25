@@ -10,7 +10,7 @@
 
 ## 下载
 
-从 [GitHub Releases](https://github.com/coderirse/Reps/releases/latest) 下载最新 APK，安装即可（需允许安装未知来源应用）。已装旧版的用户也可以直接在「设置 → 检查更新」里升级。
+从 [GitHub Releases](https://github.com/coderirse/Reps/releases/latest) 下载最新 APK，安装即可（首次需允许「安装未知来源应用」）。已装 v1.2.0+ 的用户无需手动下载：**启动时自动检查更新，发现新版本直接弹窗 → 下载 → 拉起安装**，授权一次后续自动续装。
 
 ## 功能
 

@@ -215,7 +215,9 @@ fun PracticeConfigScreen(
                     scope.launch {
                         // total > 0 here (button gate), so null means the
                         // session creation itself failed — never stay silent.
-                        if (viewModel.start() == null) startFailedHint = startFailedText
+                        val sessionId = viewModel.start()
+                        if (sessionId == null) startFailedHint = startFailedText
+                        else onSessionStarted(sessionId)
                     }
                 },
                 enabled = state.total > 0 && !state.starting,

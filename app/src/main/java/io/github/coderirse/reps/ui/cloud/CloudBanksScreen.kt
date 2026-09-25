@@ -229,16 +229,27 @@ private fun BankCard(
                 }
                 if (downloading) {
                     Spacer(Modifier.height(10.dp))
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        stringResource(R.string.cloud_downloading, (progress * 100).toInt()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (progress >= 0f) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.cloud_downloading, (progress * 100).toInt()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        // 总大小未知（chunked 响应）：不确定进度，不显示假百分比
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.cloud_downloading_unknown),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             Spacer(Modifier.width(12.dp))

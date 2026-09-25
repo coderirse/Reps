@@ -62,7 +62,6 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.prefs.FontScale
 import io.github.coderirse.reps.data.prefs.ThemeMode
 import io.github.coderirse.reps.data.prefs.UserSettings
-import io.github.coderirse.reps.ui.update.UpdateDialog
 import io.github.coderirse.reps.ui.update.UpdateViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -72,11 +71,11 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
     onOpenAbout: () -> Unit,
+    updateViewModel: UpdateViewModel,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = UserSettings.DEFAULT)
     val busy by viewModel.busy.collectAsStateWithLifecycle(initialValue = false)
-    val updateViewModel: UpdateViewModel = viewModel()
     val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     val backupEvent by viewModel.backupEvent.collectAsStateWithLifecycle(initialValue = null)
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
@@ -123,9 +122,7 @@ fun SettingsScreen(
         }
     }
 
-    // 启动时静默检查一次更新：只有确实有新版本才弹框，没网/失败都不打扰用户
-    LaunchedEffect(Unit) { updateViewModel.check(silent = true) }
-
+    // 静默更新检查在 RepsApp（应用启动）做；这里只消费手动检查的反馈。
     LaunchedEffect(updateState.message) {
         updateState.message?.let {
             snackbarHostState.showSnackbar(it)
@@ -246,8 +243,6 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
-
-    UpdateDialog(updateViewModel)
 
     if (showQrDialog) {
         AlertDialog(
