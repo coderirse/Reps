@@ -30,8 +30,8 @@ android {
         applicationId = "io.github.coderirse.reps"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.1.0"
+        versionCode = 7
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Packages the exported schemas into androidTest assets so
@@ -64,6 +64,9 @@ android {
     }
     buildFeatures {
         compose = true
+        // 应用内更新要把服务端版本号与本机 VERSION_CODE 比较，需要 BuildConfig；
+        // AGP 8+ 起默认不再生成它（项目此前没用到，所以一直没开）。
+        buildConfig = true
     }
 }
 
@@ -71,14 +74,25 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
-// Privacy invariant (docs/PRODUCT.md section 8): Reps never declares INTERNET.
-// Checked against the merged manifest so library manifests are covered too.
-val verifyNoInternetPermission = tasks.register("verifyNoInternetPermission") {
+// 隐私边界（docs/PRODUCT.md「隐私」一节）：Reps 会联网，但只做两件只读的事——
+// 拉取云端题库、检查应用更新；用户数据（题库/进度/错题/笔记）永远不上传。
+// 这条边界在这里被机器化强制，取代此前「禁止 INTERNET」的门禁（联网已是功能，
+// 禁不掉；能守住的是"网络调用不许扩散到别处"）：
+//   1. merged manifest 必须声明 INTERNET —— 云功能依赖它，被误删要立刻发现
+//   2. 网络 API 只允许出现在 data/net 包内
+//      （java.net.URLEncoder/URLDecoder/URI 是本地编解码，不在限制之列）
+val verifyNetworkContainment = tasks.register("verifyNetworkContainment") {
     group = "verification"
-    description = "Fails if any merged manifest declares the INTERNET permission."
-    dependsOn("processReleaseMainManifest")
+    description = "Fails if network APIs leak outside data/net, or if INTERNET is missing."
+    // 必须依赖 processReleaseManifest（最终合并产物）。只依赖
+    // processReleaseMainManifest 拿到的是"还没合并库 manifest"的中间文件，
+    // 且磁盘上那份可能是上一次构建留下的旧文件。
+    dependsOn("processReleaseManifest")
     // Capture as plain File (config-cache safe); merged manifest dir name varies by AGP.
     val intermediatesDir = layout.buildDirectory.dir("intermediates").get().asFile
+    val srcDir = file("src/main/java")
+    // doLast 里不能访问 project（configuration cache 会直接报错），配置期先取出前缀
+    val projectDirPath = projectDir.absolutePath
     outputs.upToDateWhen { false }
     doLast {
         val manifests = intermediatesDir.walkTopDown()
@@ -87,15 +101,40 @@ val verifyNoInternetPermission = tasks.register("verifyNoInternetPermission") {
         if (manifests.isEmpty()) {
             throw GradleException("未找到 merged manifest，请先执行一次构建")
         }
-        val offenders = manifests.filter { it.readText().contains("android.permission.INTERNET") }
-        if (offenders.isNotEmpty()) {
-            throw GradleException("检测到 INTERNET 权限，Reps 必须保持完全离线: $offenders")
+
+        val missingInternet = manifests.filterNot {
+            it.readText().contains("android.permission.INTERNET")
         }
-        println("隐私检查通过：${manifests.size} 个 merged manifest 均未声明 INTERNET 权限")
+        if (missingInternet.isNotEmpty()) {
+            throw GradleException(
+                "云端题库与应用内更新依赖 INTERNET 权限，但以下 manifest 未声明: $missingInternet"
+            )
+        }
+
+        val networkApi = Regex(
+            """\bokhttp3\b|\bjava\.net\.(?:URL|URLConnection|HttpURLConnection|Socket|ServerSocket|DatagramSocket|InetAddress|InetSocketAddress|SocketAddress)\b"""
+        )
+        val offenders = srcDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.path.replace('\\', '/').contains("/data/net/") }
+            .mapNotNull { file ->
+                val hit = file.readLines().firstOrNull { networkApi.containsMatchIn(it) }
+                hit?.let {
+                    val relative = file.absolutePath.removePrefix(projectDirPath).trimStart('\\', '/')
+                    "$relative: ${it.trim()}"
+                }
+            }
+            .toList()
+        if (offenders.isNotEmpty()) {
+            throw GradleException(
+                "网络调用只允许出现在 data/net 包内，违规文件:\n" + offenders.joinToString("\n")
+            )
+        }
+        println("隐私边界检查通过：INTERNET 已声明，网络调用仅存在于 data/net 包")
     }
 }
 
-tasks.named("check") { dependsOn(verifyNoInternetPermission) }
+tasks.named("check") { dependsOn(verifyNetworkContainment) }
 
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
@@ -118,6 +157,10 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
+    // 云端题库 + 应用内更新：项目里唯一允许发起网络请求的地方（data/net 包，
+    // 由 verifyNetworkContainment 门禁守着）
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.coroutines)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
