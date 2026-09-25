@@ -28,12 +28,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,8 +69,19 @@ fun PracticeConfigScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    var startFailedHint by remember { mutableStateOf<String?>(null) }
+    val startFailedText = stringResource(R.string.config_start_failed)
+
+    LaunchedEffect(startFailedHint) {
+        startFailedHint?.let {
+            snackbarHostState.showSnackbar(it)
+            startFailedHint = null
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -199,7 +213,9 @@ fun PracticeConfigScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        viewModel.start()?.let(onSessionStarted)
+                        // total > 0 here (button gate), so null means the
+                        // session creation itself failed — never stay silent.
+                        if (viewModel.start() == null) startFailedHint = startFailedText
                     }
                 },
                 enabled = state.total > 0 && !state.starting,

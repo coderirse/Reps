@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 更新包（APK）与云端题库（CSV）都落在 cache/downloads：前者交给系统安装器，
+         后者交回应用内导入管线，两者都需要通过 FileProvider 把文件交给别的进程读。 -->
+    <cache-path
+        name="downloads"
+        path="downloads/" />
+</paths>

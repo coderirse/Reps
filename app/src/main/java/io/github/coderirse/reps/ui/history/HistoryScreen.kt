@@ -12,12 +12,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -59,10 +61,11 @@ class HistoryViewModel(db: RepsDatabase) : ViewModel() {
 @Composable
 fun HistoryScreen(
     onOpenResult: (Long) -> Unit,
+    onGoPractice: () -> Unit = {},
     viewModel: HistoryViewModel = viewModel(factory = HistoryViewModel.Factory),
 ) {
     val rows by viewModel.history.collectAsStateWithLifecycle(initialValue = null)
-    val dateFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+    val dateFormat = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     Column(Modifier.fillMaxSize()) {
         Text(
@@ -77,6 +80,9 @@ fun HistoryScreen(
                 icon = Icons.Filled.History,
                 title = stringResource(R.string.history_empty_title),
                 description = stringResource(R.string.history_empty_description),
+                action = {
+                    Button(onClick = onGoPractice) { Text(stringResource(R.string.action_go_practice)) }
+                },
             )
             else -> LazyColumn(Modifier.weight(1f)) {
                 items(current, key = { it.session.id }) { row ->

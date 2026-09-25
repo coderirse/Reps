@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.coderirse.reps.data.backup.BackupRepository
 import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.prefs.SettingsRepository
+import io.github.coderirse.reps.data.repo.CloudBankRepository
 import io.github.coderirse.reps.data.repo.ImportRepository
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.CoroutineScope
@@ -31,4 +32,7 @@ class RepsApplication : Application() {
     val studySessionRepository: StudySessionRepository by lazy { StudySessionRepository(database) }
 
     val backupRepository: BackupRepository by lazy { BackupRepository(this, database, settingsRepository) }
+
+    /** 云端题库：列表 + 下载。唯一会联网的仓储，内部只调用 data/net 的封装。 */
+    val cloudBankRepository: CloudBankRepository by lazy { CloudBankRepository(this) }
 }

@@ -23,8 +23,8 @@ jobs:
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --console=plain
 
-      - name: Privacy check - no INTERNET permission
-        run: ./gradlew verifyNoInternetPermission --console=plain
+      - name: Privacy check - network confined to data/net
+        run: ./gradlew verifyNetworkContainment --console=plain
 
       - name: Build debug
         run: ./gradlew assembleDebug --console=plain

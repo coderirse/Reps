@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 后端目前只有公网 IP（域名 api.caeamer.com 未备案被链路拦截，见 docs/DEVELOPMENT.md
+     「服务端接入」一节），所以必须允许明文 HTTP。这里只对后端 IP 放开，而不是像
+     showwe 客户端那样全局 cleartext —— 明文面收窄到唯一必要的那一个地址。 -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">112.125.88.178</domain>
+    </domain-config>
+</network-security-config>

@@ -15,7 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.OutlinedFlag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.pager.HorizontalPager
@@ -47,6 +51,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.data.db.entity.AnswerActionType
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
 import io.github.coderirse.reps.ui.home.practiceModeLabel
@@ -135,10 +140,25 @@ fun StudyScreen(
     val currentQuestion = questions.getOrNull(state.currentIndex)
     val currentUi = currentQuestion?.let { state.perQuestion[it.id] }
     val timed = state.remainingMs != null
-    val unansweredCount = questions.count { state.perQuestion[it.id]?.answered != true }
+    // 未作答 counts only untouched papers; browsed (看答案) questions were
+    // already "worked through" and must not read as unanswered.
+    val unansweredCount = questions.count {
+        val st = state.perQuestion[it.id]
+        st?.answered != true && st?.actionType != AnswerActionType.BROWSED
+    }
     val remainingText = state.remainingMs?.let { ms ->
         val totalSec = (ms / 1000).coerceAtLeast(0)
         "%02d:%02d".format(totalSec / 60, totalSec % 60)
+    }
+    // One-shot long buzz the moment the countdown crosses the last minute.
+    val haptics = LocalHapticFeedback.current
+    var minuteWarned by remember { mutableStateOf(false) }
+    LaunchedEffect(state.remainingMs) {
+        val ms = state.remainingMs ?: return@LaunchedEffect
+        if (ms in 1..60_000 && !minuteWarned) {
+            minuteWarned = true
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
     }
     // Multi-choice pending confirmation: the primary button becomes 确认答案.
     val multiPending = currentQuestion != null &&
@@ -222,6 +242,22 @@ fun StudyScreen(
                             contentDescription = stringResource(R.string.study_favorite),
                             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    if (state.examMode) {
+                        val isFlagged = question.id in state.flagged
+                        IconButton(onClick = { viewModel.toggleFlag(question.id) }) {
+                            Icon(
+                                imageVector = if (isFlagged) Icons.Filled.Flag else Icons.Outlined.OutlinedFlag,
+                                contentDescription = stringResource(
+                                    if (isFlagged) R.string.study_unflag else R.string.study_flag,
+                                ),
+                                tint = if (isFlagged) {
+                                    MaterialTheme.colorScheme.tertiary
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
                     }
                     IconButton(onClick = { showNoteDialog = true }) {
                         Icon(
@@ -309,6 +345,7 @@ fun StudyScreen(
                 currentIndex = state.currentIndex,
                 perQuestion = state.perQuestion,
                 examMode = state.examMode,
+                flagged = state.flagged,
                 questionIdAt = { index -> questions.getOrNull(index)?.id },
                 onJump = { index ->
                     showAnswerCard = false

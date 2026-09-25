@@ -63,6 +63,7 @@ fun HomeScreen(
     snackbarMessage: String?,
     onSnackbarShown: () -> Unit,
     onOpenImportPreview: (android.net.Uri) -> Unit,
+    onOpenCloudBanks: () -> Unit,
     onOpenPracticeConfig: (Long, String) -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel = viewModel(factory = HomeViewModel.Factory),
@@ -114,8 +115,14 @@ fun HomeScreen(
                 description = stringResource(R.string.home_empty_description),
                 modifier = Modifier.align(Alignment.Center),
                 action = {
-                    Button(onClick = { filePicker.launch(arrayOf("*/*")) }) {
-                        Text(stringResource(R.string.home_import_button))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Button(onClick = { filePicker.launch(arrayOf("*/*")) }) {
+                            Text(stringResource(R.string.home_import_button))
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        TextButton(onClick = onOpenCloudBanks) {
+                            Text(stringResource(R.string.cloud_banks_entry))
+                        }
                     }
                 },
             )
@@ -124,6 +131,7 @@ fun HomeScreen(
                 builtinSubjectId = settings.builtinSubjectId,
                 practicedCounts = practicedCounts,
                 onImportClick = { filePicker.launch(arrayOf("*/*")) },
+                onCloudBanksClick = onOpenCloudBanks,
                 onOpenPracticeConfig = onOpenPracticeConfig,
                 onStartSession = onStartSession,
                 viewModel = viewModel,
@@ -215,6 +223,7 @@ private fun SubjectList(
     builtinSubjectId: Long,
     practicedCounts: Map<Long, Int>,
     onImportClick: () -> Unit,
+    onCloudBanksClick: () -> Unit,
     onOpenPracticeConfig: (Long, String) -> Unit,
     onStartSession: (Long) -> Unit,
     viewModel: HomeViewModel,
@@ -259,6 +268,12 @@ private fun SubjectList(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) { Text(stringResource(R.string.home_import_button)) }
+            }
+            item {
+                TextButton(
+                    onClick = onCloudBanksClick,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.cloud_banks_entry)) }
             }
             item { HomeFooter() }
             item { Spacer(Modifier.height(16.dp)) }

@@ -12,13 +12,17 @@ import io.github.coderirse.reps.data.db.RepsDatabase
 import io.github.coderirse.reps.data.db.entity.PracticeType
 import io.github.coderirse.reps.data.db.entity.QuestionType
 import io.github.coderirse.reps.data.db.entity.ReciteMode
+import io.github.coderirse.reps.data.prefs.SettingsRepository
 import io.github.coderirse.reps.data.repo.StudySessionRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
 /** 抽题题池（仅背题/模拟考试可选；错题重练/收藏练习的池子固定）。 */
 enum class PoolChoice { ALL, UNPRACTICED, WRONG, FAVORITE }
@@ -44,34 +48,69 @@ data class PracticeConfigUiState(
     val poolTotal: Int get() = singleMax + multiMax + judgeMax
 }
 
+/** Last-used config persisted per (subject, mode); quotas re-coerced to the pool on load. */
+@Serializable
+private data class SavedPracticeConfig(
+    val single: Int,
+    val multi: Int,
+    val judge: Int,
+    val timed: Boolean,
+    val minutes: Int,
+    val order: String,
+    val pool: String? = null,
+)
+
 /**
  * Secondary config page behind every practice-mode entry (背题/模拟考试/错题重练/
  * 收藏练习). Pool: the whole subject for 背题/模拟考试, the unmastered wrong book
- * or the favorites for the other two.
+ * or the favorites for the other two. The last confirmed config is remembered
+ * per (subject, mode) so frequent users don't rebuild quotas every time.
  */
 class PracticeConfigViewModel(
     private val subjectId: Long,
     val practiceType: String,
     private val db: RepsDatabase,
     private val sessionRepository: StudySessionRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private var poolIds: List<Long>? = null
 
+    /** Serializes pool loads: rapid pool switches would race two IO queries. */
+    private var poolJob: Job? = null
+
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val _state = MutableStateFlow(PracticeConfigUiState())
     val state: StateFlow<PracticeConfigUiState> = _state
 
+    private val configKey = "cfg_${subjectId}_$practiceType"
+
     init {
-        viewModelScope.launch { loadPool() }
+        poolJob = viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { loadSavedConfig() }
+            // The pool choice must be applied before loadPool queries counts.
+            saved?.pool?.let { savedPool ->
+                runCatching { PoolChoice.valueOf(savedPool) }.getOrNull()?.let { pool ->
+                    _state.update { it.copy(pool = pool) }
+                }
+            }
+            loadPool(applySaved = saved)
+        }
     }
 
     fun setPool(pool: PoolChoice) {
         if (pool == _state.value.pool) return
         _state.update { it.copy(pool = pool, loading = true) }
-        viewModelScope.launch { loadPool() }
+        poolJob?.cancel()
+        poolJob = viewModelScope.launch { loadPool() }
     }
 
-    private suspend fun loadPool() {
+    private suspend fun loadSavedConfig(): SavedPracticeConfig? =
+        settingsRepository.practiceConfig(configKey)
+            ?.let { runCatching { json.decodeFromString(SavedPracticeConfig.serializer(), it) }.getOrNull() }
+
+    private suspend fun loadPool(applySaved: SavedPracticeConfig? = null) {
         val (name, counts) = withContext(Dispatchers.IO) {
             val subjectName = db.subjectDao().getById(subjectId)?.name.orEmpty()
             val counts = when (practiceType) {
@@ -112,29 +151,28 @@ class PracticeConfigViewModel(
         val singleMax = counts[QuestionType.SINGLE] ?: 0
         val multiMax = counts[QuestionType.MULTI] ?: 0
         val judgeMax = counts[QuestionType.JUDGE] ?: 0
+        // 模拟考试默认小试卷: capped quotas, timer on, random order. Everything
+        // else practices the whole pool. A saved config overrides the defaults
+        // (re-coerced into what the current pool can actually provide).
+        val defaultSingle = if (practiceType == PracticeType.EXAM) minOf(40, singleMax) else singleMax
+        val defaultMulti = if (practiceType == PracticeType.EXAM) minOf(10, multiMax) else multiMax
+        val defaultJudge = if (practiceType == PracticeType.EXAM) minOf(10, judgeMax) else judgeMax
+        val savedSingle = applySaved?.single?.coerceIn(0, singleMax) ?: defaultSingle
+        val savedMulti = applySaved?.multi?.coerceIn(0, multiMax) ?: defaultMulti
+        val savedJudge = applySaved?.judge?.coerceIn(0, judgeMax) ?: defaultJudge
         _state.update {
-            when (practiceType) {
-                // 模拟考试默认小试卷: capped quotas, timer on, random order.
-                PracticeType.EXAM -> it.copy(
-                    loading = false,
-                    subjectName = name,
-                    singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
-                    single = minOf(40, singleMax),
-                    multi = minOf(10, multiMax),
-                    judge = minOf(10, judgeMax),
-                    timed = true,
-                    order = CustomOrder.RANDOM,
-                    poolSelectable = true,
-                )
-                // 背题/错题/收藏默认练整个池子.
-                else -> it.copy(
-                    loading = false,
-                    subjectName = name,
-                    singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
-                    single = singleMax, multi = multiMax, judge = judgeMax,
-                    poolSelectable = practiceType == PracticeType.RECITE,
-                )
-            }
+            it.copy(
+                loading = false,
+                subjectName = name,
+                singleMax = singleMax, multiMax = multiMax, judgeMax = judgeMax,
+                single = savedSingle, multi = savedMulti, judge = savedJudge,
+                timed = applySaved?.timed ?: (practiceType == PracticeType.EXAM),
+                minutes = applySaved?.minutes?.coerceIn(5, 240) ?: 60,
+                order = applySaved
+                    ?.let { c -> runCatching { CustomOrder.valueOf(c.order) }.getOrNull() }
+                    ?: (if (practiceType == PracticeType.EXAM) CustomOrder.RANDOM else CustomOrder.SEQUENTIAL),
+                poolSelectable = practiceType == PracticeType.RECITE || practiceType == PracticeType.EXAM,
+            )
         }
     }
 
@@ -155,13 +193,13 @@ class PracticeConfigViewModel(
     fun setMinutes(minutes: Int) = _state.update { it.copy(minutes = minutes.coerceIn(5, 240)) }
     fun setOrder(order: CustomOrder) = _state.update { it.copy(order = order) }
 
-    /** @return new session id, or null when the pool/quota is empty. */
+    /** @return new session id, or null when the pool/quota is empty or creation failed. */
     suspend fun start(): Long? {
         val current = _state.value
         if (current.starting || current.total <= 0) return null
         _state.update { it.copy(starting = true) }
         return try {
-            runCatching {
+            val sessionId = runCatching {
                 sessionRepository.createConfiguredSession(
                     subjectId = subjectId,
                     practiceType = practiceType,
@@ -178,8 +216,27 @@ class PracticeConfigViewModel(
                     poolIds = poolIds,
                 )
             }.getOrNull()
+            // Only a confirmed start persists the config, so a failed attempt
+            // never overwrites the last known-good setup.
+            if (sessionId != null) saveConfig(current)
+            sessionId
         } finally {
             _state.update { it.copy(starting = false) }
+        }
+    }
+
+    private suspend fun saveConfig(current: PracticeConfigUiState) {
+        val saved = SavedPracticeConfig(
+            single = current.single,
+            multi = current.multi,
+            judge = current.judge,
+            timed = current.timed,
+            minutes = current.minutes,
+            order = current.order.name,
+            pool = if (current.poolSelectable) current.pool.name else null,
+        )
+        runCatching {
+            settingsRepository.setPracticeConfig(configKey, json.encodeToString(SavedPracticeConfig.serializer(), saved))
         }
     }
 
@@ -192,6 +249,7 @@ class PracticeConfigViewModel(
                     practiceType = practiceType,
                     db = app.database,
                     sessionRepository = app.studySessionRepository,
+                    settingsRepository = app.settingsRepository,
                 )
             }
         }

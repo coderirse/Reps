@@ -60,6 +60,11 @@ data class StudyUiState(
     val examMode: Boolean = false,
     val favorites: Set<Long> = emptySet(),
     val notes: Map<Long, String> = emptyMap(),
+    /**
+     * Exam flag-for-review marks. Kept in memory only: they matter within one
+     * sitting, and persisting them would need a schema change + migration.
+     */
+    val flagged: Set<Long> = emptySet(),
 )
 
 class StudyViewModel(
@@ -214,16 +219,29 @@ class StudyViewModel(
         startPeriodicSave()
     }
 
-    private fun persistCurrentState(accumulatedMs: Long, scope: CoroutineScope) {
+    /**
+     * Latest position write in flight. Older ones are cancelled before a new
+     * one launches: concurrent savePosition calls on the IO pool could land
+     * out of order and resurrect a stale currentIndex (review H3).
+     */
+    private var pendingPersist: Job? = null
+
+    private fun persistCurrentState(
+        accumulatedMs: Long,
+        scope: CoroutineScope,
+        reciteMode: String? = null,
+    ) {
         val s = session ?: return
         val current = _state.value
         val oldState = current.questions.getOrNull(current.currentIndex)?.let { current.perQuestion[it.id] }
-        scope.launch {
+        pendingPersist?.cancel()
+        pendingPersist = scope.launch {
             sessionRepository.savePosition(
                 session = s,
                 currentIndex = current.currentIndex,
                 selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
                 answerRevealed = oldState?.revealed ?: false,
+                reciteMode = reciteMode ?: s.reciteMode,
                 accumulatedMs = accumulatedMs,
             )
         }
@@ -371,17 +389,7 @@ class StudyViewModel(
         if (newMode == current.reciteMode) return
         val currentQuestion = current.questions.getOrNull(current.currentIndex)
         session = s.copy(reciteMode = newMode)
-        viewModelScope.launch {
-            val oldState = currentQuestion?.let { current.perQuestion[it.id] }
-            sessionRepository.savePosition(
-                session = session!!,
-                currentIndex = current.currentIndex,
-                selectedAnswer = oldState?.takeIf { it.graded }?.selectedAnswer,
-                answerRevealed = oldState?.revealed ?: false,
-                reciteMode = newMode,
-                accumulatedMs = accumulatedMs,
-            )
-        }
+        persistCurrentState(accumulatedMs, externalScope, reciteMode = newMode)
         _state.update { st ->
             st.copy(
                 reciteMode = newMode,
@@ -401,6 +409,16 @@ class StudyViewModel(
         }
         if (newMode == ReciteMode.BROWSE) {
             currentQuestion?.let { markBrowsed(it) }
+        }
+    }
+
+    /** Exam-only 存疑标记: shown on the flag icon and the answer card. */
+    fun toggleFlag(questionId: Long) {
+        if (!_state.value.examMode) return
+        _state.update { st ->
+            st.copy(
+                flagged = if (questionId in st.flagged) st.flagged - questionId else st.flagged + questionId,
+            )
         }
     }
 
@@ -459,6 +477,14 @@ class StudyViewModel(
         // button can both fire before the coroutine below runs.
         if (_state.value.sessionCompleted) return
         _state.update { it.copy(sessionCompleted = true) }
+        // Stop the background loops first (review H2): an in-flight periodic
+        // savePosition would otherwise rewrite the whole row — with status
+        // still ACTIVE in memory — after gradeExamSession's markCompleted.
+        periodicSave?.cancel()
+        periodicSave = null
+        ticker?.cancel()
+        ticker = null
+        pendingPersist?.cancel()
         viewModelScope.launch {
             persistCurrentStateSync()
             // gradeExamSession only touches EXAM_SELECTED rows, so recite and

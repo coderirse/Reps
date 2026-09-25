@@ -345,7 +345,60 @@ StudyScreen (Scaffold, 全屏)
 - [x] release 签名密钥已生成（2026-08-30）：`keystore/reps-release.jks`（alias `reps-release`），密码存放于 `keystore/keystore.properties`；两者均已 gitignore，**严禁入库、务必异地备份**（丢失将无法发布更新）
 - [ ] 接入 `signingConfig`：build 脚本读取 `keystore/keystore.properties`，存在则签 release，缺失则回退 debug 签名（本地构建不因缺密钥而失败）
 - [ ] 开启 R8 优化 + 确认 keep 规则
-- [ ] `AndroidManifest` 无 `INTERNET` 权限（CI 中加断言：解析 merger 输出检查）
+- [x] 隐私门禁 `verifyNetworkContainment`：断言 `INTERNET` 已声明（云题库/更新依赖它），且网络 API 只允许出现在 `data/net` 包内（CI 已接入）
 - [ ] MIT LICENSE 文件 + 源码头注释
 - [ ] README：slogan、截图、CSV 格式说明、下载（GitHub Releases / F-Droid 计划）
 - [ ] 版本号 `versionCode/versionName` 策略（1.x.y，SemVer）
+
+## 13. 服务端接入（云端题库与应用内更新）
+
+Reps 复用 showwe 那台 ECS（服务器信息见 `D:\git_\showwe\readme\README.md`）。新接口挂在
+现有 Express 进程的 `/api/reps` 前缀下，**不新增端口、不访问数据库、不接收任何用户数据**。
+
+### 服务端（仓库 `D:\git_\showwe`）
+
+| 文件 | 作用 |
+|---|---|
+| `server/src/routes/reps.js` | 三个只读接口 + 探活 |
+| `server/src/reps-banks.json` | 云端题库清单（管理员维护） |
+| `server/src/reps-app-version.json` | 版本声明（字段对齐 `app-version.json`） |
+| `server/public/downloads/reps/` | 题库 CSV 与 APK 存放目录 |
+
+```
+GET /api/reps/banks            题库列表（含 sizeBytes / sha256 / 绝对下载地址）
+GET /api/reps/banks/:id/file   题库 CSV 本体（no-cache）
+GET /api/reps/app/latest       版本声明（含 apkSha256）
+GET /api/reps/health           运维探活（返回 bankCount / bankIds）
+```
+
+**热更新**：管理员把 CSV 放进 `public/downloads/reps/` 并在 `reps-banks.json` 登记一条，
+保存即生效——服务端按文件 mtime 失效重读，**不需要重启服务、不需要发新版 App**。
+清单 JSON 被写坏时会退回上一次可用内容，不会让线上题库列表凭空消失。
+
+部署仍走 `cd D:\git_\showwe && bash scripts/deploy.sh`。注意该脚本会全量打包 `public`，
+APK 不宜长期堆在 `public/downloads/` 里（每次部署都会重新上传一遍）。
+
+### 客户端
+
+| 位置 | 作用 |
+|---|---|
+| `data/net/RepsNet.kt` | OkHttp 单例；**全应用唯一发起网络请求的地方** |
+| `data/net/RepsApi.kt` | DTO 与接口定义 |
+| `data/net/Downloads.kt` | 下载 + sha256 校验 + 调起系统安装器 |
+| `data/repo/CloudBankRepository.kt` | 题库列表 + 下载；下载后换成 content:// URI 交给导入预览 |
+| `ui/cloud/CloudBanksScreen.kt` / `CloudBanksViewModel.kt` | 云端题库列表页（进度、失败重试、空态） |
+| `ui/update/UpdateViewModel.kt` | 应用内更新（设置页入口 + 启动静默检查） |
+
+云端题库刻意**不直接入库**：下载完用 FileProvider 换一个 `content://` URI，塞进既有的
+`ImportPreviewScreen`，复用同一条编码探测 / CSV 解析 / 预览确认管线。因此
+`ImportRepository` 与 `ImportPreviewScreen` 不需要任何改动，云端题库与本地导入的行为
+完全一致（包括「导入前必须预览」这条产品原则）。
+
+### 两个必须知道的约束
+
+1. **只能走 IP + 明文 HTTP**：域名 `api.caeamer.com` 未完成 ICP 备案，走域名的流量会被云
+   厂商拦截（HTTP 403 拦截页 / TLS 握手被 reset）。因此 `network_security_config.xml`
+   只对 `112.125.88.178` 放开明文，而不是全局 cleartext。备案完成后把 `RepsNet.BASE_URL`
+   改成域名 + HTTPS，并同步收紧该配置。
+2. **明文下摘要就是完整性保障**：服务端下发 `sha256`，客户端下载后校验，对不上就丢弃。
+   这能防篡改但不能防窃听——所以**永远不要把用户数据发上去**，只读出口同时也是隐私边界。

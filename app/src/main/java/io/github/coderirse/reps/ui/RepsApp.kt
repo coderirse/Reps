@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -18,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.toRoute
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.ui.cloud.CloudBanksScreen
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigScreen
@@ -25,6 +27,7 @@ import io.github.coderirse.reps.ui.history.HistoryScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigViewModel
 import io.github.coderirse.reps.ui.import.ImportPreviewScreen
 import io.github.coderirse.reps.ui.navigation.About
+import io.github.coderirse.reps.ui.navigation.CloudBanks
 import io.github.coderirse.reps.ui.navigation.Favorites
 import io.github.coderirse.reps.ui.navigation.History
 import io.github.coderirse.reps.ui.navigation.Home
@@ -60,13 +63,7 @@ fun RepsApp() {
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateTopLevel(tab.route)
                             },
                             icon = {
                                 Icon(
@@ -93,10 +90,19 @@ fun RepsApp() {
                     onOpenImportPreview = { uri ->
                         navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
                     },
+                    onOpenCloudBanks = { navController.navigate(CloudBanks) },
                     onOpenPracticeConfig = { subjectId, practiceType ->
                         navController.navigate(PracticeConfig(subjectId, practiceType))
                     },
                     onStartSession = { sessionId -> navController.navigate(Study(sessionId)) },
+                )
+            }
+            composable<CloudBanks> {
+                CloudBanksScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenImportPreview = { uri ->
+                        navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
+                    },
                 )
             }
             composable<PracticeConfig> { entry ->
@@ -151,6 +157,7 @@ fun RepsApp() {
                         navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.WRONG_BOOK))
                     },
                     onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) },
+                    onGoPractice = { navController.navigateTopLevel(Home) },
                 )
             }
             composable<Favorites> {
@@ -158,11 +165,13 @@ fun RepsApp() {
                     onOpenConfig = { subjectId ->
                         navController.navigate(PracticeConfig(subjectId, io.github.coderirse.reps.data.db.entity.PracticeType.FAVORITE))
                     },
+                    onSessionStarted = { sessionId -> navController.navigate(Study(sessionId)) },
                 )
             }
             composable<History> {
                 HistoryScreen(
                     onOpenResult = { sessionId -> navController.navigate(SessionResult(sessionId)) },
+                    onGoPractice = { navController.navigateTopLevel(Home) },
                 )
             }
             composable<Settings> {
@@ -174,3 +183,12 @@ fun RepsApp() {
 }
 
 private const val IMPORT_MESSAGE_KEY = "import_message"
+
+/** Bottom-bar style tab switch, shared by the empty-state "去刷题" shortcuts. */
+private fun NavController.navigateTopLevel(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}

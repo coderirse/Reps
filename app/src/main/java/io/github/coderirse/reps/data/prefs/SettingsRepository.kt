@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -80,5 +81,19 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setBuiltinSubjectId(subjectId: Long) {
         context.dataStore.edit { it[Keys.BUILTIN_SUBJECT_ID] = subjectId }
+    }
+
+    /**
+     * Last-used practice-config snapshot per (subject, mode), stored as JSON
+     * by the caller. Remembers user quotas/timer/order across sessions.
+     */
+    suspend fun practiceConfig(key: String): String? =
+        context.dataStore.data.first()[stringPreferencesKey("practice_cfg_$key")]
+
+    suspend fun setPracticeConfig(key: String, value: String?) {
+        context.dataStore.edit { prefs ->
+            val prefKey = stringPreferencesKey("practice_cfg_$key")
+            if (value == null) prefs.remove(prefKey) else prefs[prefKey] = value
+        }
     }
 }

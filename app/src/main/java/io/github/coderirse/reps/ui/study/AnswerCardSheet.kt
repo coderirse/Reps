@@ -60,10 +60,13 @@ fun AnswerCardSheet(
     onJump: (Int) -> Unit,
     onDismiss: () -> Unit,
     examMode: Boolean = false,
+    /** Exam flag-for-review marks; drawn as a dot on the cell. */
+    flagged: Set<Long> = emptySet(),
 ) {
     val correctColor = successColor()
     val wrongColor = wrongColor()
     val browsedColor = MaterialTheme.colorScheme.secondary
+    val flagColor = MaterialTheme.colorScheme.tertiary
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
@@ -71,6 +74,9 @@ fun AnswerCardSheet(
                 if (examMode) {
                     LegendDot(MaterialTheme.colorScheme.primaryContainer, stringResource(R.string.card_legend_answered))
                     LegendDot(MaterialTheme.colorScheme.surfaceVariant, stringResource(R.string.card_legend_undo))
+                    if (flagged.isNotEmpty()) {
+                        LegendDot(flagColor, stringResource(R.string.card_legend_flagged))
+                    }
                 } else {
                     LegendDot(correctColor, stringResource(R.string.card_legend_correct))
                     LegendDot(wrongColor, stringResource(R.string.card_legend_wrong))
@@ -88,6 +94,7 @@ fun AnswerCardSheet(
             ) {
                 items(total) { index ->
                     val questionState = questionIdAt(index)?.let { perQuestion[it] }
+                    val isFlagged = questionIdAt(index)?.let { it in flagged } == true
                     val status = if (examMode) {
                         cellStatusForExam(questionState, index == currentIndex)
                     } else {
@@ -115,7 +122,11 @@ fun AnswerCardSheet(
                         CardCellStatus.ANSWERED -> stringResource(R.string.card_legend_answered)
                         CardCellStatus.UNTOUCHED -> stringResource(R.string.card_legend_undo)
                     }
-                    val cellLabel = stringResource(R.string.card_cell_label, index + 1, statusLabel)
+                    val cellLabel = if (isFlagged) {
+                        stringResource(R.string.card_cell_label, index + 1, "$statusLabel · ${stringResource(R.string.card_legend_flagged)}")
+                    } else {
+                        stringResource(R.string.card_cell_label, index + 1, statusLabel)
+                    }
                     Box(
                         modifier = Modifier
                             .size(48.dp) // minimum interactive target
@@ -132,6 +143,16 @@ fun AnswerCardSheet(
                         contentAlignment = Alignment.Center,
                     ) {
                         Text("${index + 1}", style = MaterialTheme.typography.labelLarge, color = contentColor)
+                        if (isFlagged) {
+                            // Flag dot offset into the corner so the number stays readable.
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(3.dp)
+                                    .size(8.dp)
+                                    .background(flagColor, CircleShape),
+                            )
+                        }
                     }
                 }
             }
