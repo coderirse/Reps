@@ -39,6 +39,10 @@ data object About
 @Serializable
 data class ImportPreview(val encodedUri: String)
 
+/** 云端题库列表；选中后下载并跳到 ImportPreview，走同一条导入确认流程。 */
+@Serializable
+data object CloudBanks
+
 @Serializable
 data class Study(val sessionId: Long)
 

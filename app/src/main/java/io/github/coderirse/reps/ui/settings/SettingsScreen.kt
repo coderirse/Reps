@@ -62,6 +62,8 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.prefs.FontScale
 import io.github.coderirse.reps.data.prefs.ThemeMode
 import io.github.coderirse.reps.data.prefs.UserSettings
+import io.github.coderirse.reps.ui.update.UpdateDialog
+import io.github.coderirse.reps.ui.update.UpdateViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -74,6 +76,8 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle(initialValue = UserSettings.DEFAULT)
     val busy by viewModel.busy.collectAsStateWithLifecycle(initialValue = false)
+    val updateViewModel: UpdateViewModel = viewModel()
+    val updateState by updateViewModel.state.collectAsStateWithLifecycle()
     val backupEvent by viewModel.backupEvent.collectAsStateWithLifecycle(initialValue = null)
     var showClearDialog by rememberSaveable { mutableStateOf(false) }
     var showThemeDialog by rememberSaveable { mutableStateOf(false) }
@@ -116,6 +120,16 @@ fun SettingsScreen(
                 if (event.message.isNotEmpty()) snackbarHostState.showSnackbar(event.message)
                 viewModel.consumeBackupEvent()
             }
+        }
+    }
+
+    // 启动时静默检查一次更新：只有确实有新版本才弹框，没网/失败都不打扰用户
+    LaunchedEffect(Unit) { updateViewModel.check(silent = true) }
+
+    LaunchedEffect(updateState.message) {
+        updateState.message?.let {
+            snackbarHostState.showSnackbar(it)
+            updateViewModel.consumeMessage()
         }
     }
 
@@ -192,15 +206,17 @@ fun SettingsScreen(
                 icon = Icons.Filled.Refresh,
                 title = stringResource(R.string.settings_check_update),
                 subtitle = stringResource(R.string.settings_check_update_desc),
-                onClick = {
-                    openUrl(context, context.getString(R.string.about_repo_url) + "/releases")
-                },
+                onClick = { if (!updateState.checking) updateViewModel.check() },
                 trailing = {
-                    Text(
-                        stringResource(R.string.settings_check_update_action),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    if (updateState.checking) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text(
+                            stringResource(R.string.settings_check_update_action),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 },
             )
             SettingRow(
@@ -230,6 +246,8 @@ fun SettingsScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    UpdateDialog(updateViewModel)
 
     if (showQrDialog) {
         AlertDialog(
@@ -305,13 +323,6 @@ fun SettingsScreen(
                 }
             },
         )
-    }
-}
-
-/** Opens a URL in the system browser; the app itself has no INTERNET permission. */
-private fun openUrl(context: android.content.Context, url: String) {
-    runCatching {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 }
 

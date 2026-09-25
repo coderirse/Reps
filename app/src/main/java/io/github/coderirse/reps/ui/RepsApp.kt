@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.toRoute
 import io.github.coderirse.reps.R
+import io.github.coderirse.reps.ui.cloud.CloudBanksScreen
 import io.github.coderirse.reps.ui.favorites.FavoritesScreen
 import io.github.coderirse.reps.ui.home.HomeScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigScreen
@@ -26,6 +27,7 @@ import io.github.coderirse.reps.ui.history.HistoryScreen
 import io.github.coderirse.reps.ui.home.PracticeConfigViewModel
 import io.github.coderirse.reps.ui.import.ImportPreviewScreen
 import io.github.coderirse.reps.ui.navigation.About
+import io.github.coderirse.reps.ui.navigation.CloudBanks
 import io.github.coderirse.reps.ui.navigation.Favorites
 import io.github.coderirse.reps.ui.navigation.History
 import io.github.coderirse.reps.ui.navigation.Home
@@ -88,10 +90,19 @@ fun RepsApp() {
                     onOpenImportPreview = { uri ->
                         navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
                     },
+                    onOpenCloudBanks = { navController.navigate(CloudBanks) },
                     onOpenPracticeConfig = { subjectId, practiceType ->
                         navController.navigate(PracticeConfig(subjectId, practiceType))
                     },
                     onStartSession = { sessionId -> navController.navigate(Study(sessionId)) },
+                )
+            }
+            composable<CloudBanks> {
+                CloudBanksScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenImportPreview = { uri ->
+                        navController.navigate(ImportPreview(URLEncoder.encode(uri.toString(), "UTF-8")))
+                    },
                 )
             }
             composable<PracticeConfig> { entry ->
