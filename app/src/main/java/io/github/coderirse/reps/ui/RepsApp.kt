@@ -7,6 +7,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
@@ -43,6 +44,8 @@ import io.github.coderirse.reps.ui.settings.AboutScreen
 import io.github.coderirse.reps.ui.settings.SettingsScreen
 import io.github.coderirse.reps.ui.study.ResultScreen
 import io.github.coderirse.reps.ui.study.StudyScreen
+import io.github.coderirse.reps.ui.update.UpdateDialog
+import io.github.coderirse.reps.ui.update.UpdateViewModel
 import io.github.coderirse.reps.ui.wrongbook.WrongBookScreen
 import java.net.URLDecoder
 import java.net.URLEncoder
@@ -53,6 +56,11 @@ fun RepsApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val onTopLevelTab = TOP_LEVEL_TABS.any { currentDestination?.hasRoute(it.route::class) == true }
+
+    // 更新检查与弹窗挂在 Activity 级作用域：应用启动时静默查一次（force 更新
+    // 不能等用户点进设置才发现），弹窗在任意页面都能出现。
+    val updateViewModel: UpdateViewModel = viewModel()
+    LaunchedEffect(Unit) { updateViewModel.check(silent = true) }
 
     Scaffold(
         bottomBar = {
@@ -175,11 +183,16 @@ fun RepsApp() {
                 )
             }
             composable<Settings> {
-                SettingsScreen(onOpenAbout = { navController.navigate(About) { launchSingleTop = true } })
+                SettingsScreen(
+                    onOpenAbout = { navController.navigate(About) { launchSingleTop = true } },
+                    updateViewModel = updateViewModel,
+                )
             }
             composable<About> { AboutScreen(onBack = { navController.popBackStack() }) }
         }
     }
+
+    UpdateDialog(updateViewModel)
 }
 
 private const val IMPORT_MESSAGE_KEY = "import_message"

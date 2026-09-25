@@ -9,6 +9,11 @@
          网络调用只允许出现在 data/net 包内。 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- 应用内更新的安装环节需要：不声明它时 canRequestPackageInstalls() 恒为
+         false，且「安装未知应用」设置页里不会出现本应用的开关，安装流程会被
+         卡死在权限循环里。Reps 是自分发（GitHub + 自建服务器），不涉及商店政策。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:name=".RepsApplication"
         android:allowBackup="false"

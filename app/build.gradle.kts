@@ -112,13 +112,21 @@ val verifyNetworkContainment = tasks.register("verifyNetworkContainment") {
         }
 
         val networkApi = Regex(
-            """\bokhttp3\b|\bjava\.net\.(?:URL|URLConnection|HttpURLConnection|Socket|ServerSocket|DatagramSocket|InetAddress|InetSocketAddress|SocketAddress)\b"""
+            """\bokhttp3\b|\bjava\.net\.(?:URL|URLConnection|HttpURLConnection|Socket|ServerSocket|DatagramSocket|InetAddress|InetSocketAddress|SocketAddress)\b|\bjavax\.net\.ssl\b"""
         )
+        // 先剥掉块注释和行注释再匹配：注释里提到 okhttp3（比如解释依赖来历时）
+        // 不该挂掉构建。字符串字面量里的 "http://" 会被行注释规则截断，但截掉
+        // 的部分不含网络 API 名，对判定无影响。
+        val blockComment = Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL)
+        val lineComment = Regex("""//.*$""")
         val offenders = srcDir.walkTopDown()
             .filter { it.isFile && it.extension == "kt" }
             .filterNot { it.path.replace('\\', '/').contains("/data/net/") }
             .mapNotNull { file ->
-                val hit = file.readLines().firstOrNull { networkApi.containsMatchIn(it) }
+                val strippedLines = blockComment.replace(file.readText(), "")
+                    .lineSequence()
+                    .map { lineComment.replace(it, "") }
+                val hit = strippedLines.firstOrNull { networkApi.containsMatchIn(it) }
                 hit?.let {
                     val relative = file.absolutePath.removePrefix(projectDirPath).trimStart('\\', '/')
                     "$relative: ${it.trim()}"

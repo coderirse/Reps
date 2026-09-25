@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -19,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import io.github.coderirse.reps.BuildConfig
@@ -26,10 +30,13 @@ import io.github.coderirse.reps.R
 import io.github.coderirse.reps.data.net.AppVersionDto
 import io.github.coderirse.reps.data.net.Downloads
 import io.github.coderirse.reps.data.net.RepsApi
+import io.github.coderirse.reps.ui.components.userFacingMessage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Locale
 
 /**
@@ -48,16 +55,25 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         /** 非空表示"发现了更高版本"，UI 据此弹更新框。 */
         val available: AppVersionDto? = null,
         val downloading: Boolean = false,
+        /** 0..1 的进度；服务端没给总大小时为 [Downloads.PROGRESS_UNKNOWN]。 */
         val progress: Float = 0f,
-        /** 一次性提示（Snackbar），消费后置空。 */
+        /**
+         * 更新框内的一次性错误（下载/安装失败）。显示在框里而不是 Snackbar——
+         * 框可能在任意页面弹出（启动时静默检查），那页未必有 SnackbarHost。
+         */
+        val dialogError: String? = null,
+        /** 一次性提示（Snackbar），消费后置空。手动检查的反馈走这里。 */
         val message: String? = null,
     )
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
+    /** 授权设置页返回后续装用的 APK；null 表示没有待安装的下载产物。 */
+    private var pendingInstall: File? = null
+
     /**
-     * 检查更新。[silent] = true 用于启动时自动检查：只有「确实有新版本」才弹框，
+     * 检查更新。[silent] = true 用于应用启动时自动检查：只有「确实有新版本」才弹框，
      * 没新版本或没网都不打扰用户；手动检查则必须有明确反馈。
      */
     fun check(silent: Boolean = false) {
@@ -65,56 +81,83 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         _state.update { it.copy(checking = true) }
         viewModelScope.launch {
             val context = getApplication<Application>()
-            runCatching { RepsApi.appLatest() }
-                .onSuccess { info ->
-                    _state.update { it.copy(checking = false) }
-                    if (info.versionCode > BuildConfig.VERSION_CODE && info.url.isNotBlank()) {
-                        _state.update { it.copy(available = info) }
-                    } else if (!silent) {
-                        _state.update {
-                            it.copy(message = context.getString(R.string.update_up_to_date, BuildConfig.VERSION_NAME))
-                        }
-                    }
-                }
-                .onFailure {
+            try {
+                val info = RepsApi.appLatest()
+                _state.update { it.copy(checking = false) }
+                if (info.versionCode > BuildConfig.VERSION_CODE && info.url.isNotBlank()) {
+                    _state.update { it.copy(available = info) }
+                } else if (!silent) {
                     _state.update {
-                        it.copy(
-                            checking = false,
-                            message = if (silent) null else context.getString(R.string.update_check_failed),
-                        )
+                        it.copy(message = context.getString(R.string.update_up_to_date, BuildConfig.VERSION_NAME))
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        checking = false,
+                        message = if (silent) {
+                            null
+                        } else {
+                            userFacingMessage(context, e, R.string.update_check_failed)
+                        },
+                    )
+                }
+            }
         }
     }
 
     fun downloadAndInstall() {
         val info = _state.value.available ?: return
         if (_state.value.downloading) return
-        _state.update { it.copy(downloading = true, progress = 0f) }
+        pendingInstall = null
+        _state.update { it.copy(downloading = true, progress = 0f, dialogError = null) }
         viewModelScope.launch {
             val context = getApplication<Application>()
-            runCatching {
-                Downloads.toCache(
+            try {
+                // 上一轮更新留在缓存里的 APK 在这里清掉
+                Downloads.clearCachedApks(context)
+                val file = Downloads.toCache(
                     context = context,
                     url = info.url,
                     fileName = "reps-${info.versionName.ifBlank { "update" }}.apk",
-                    // 明文 HTTP 下服务端摘要就是唯一的完整性保障
+                    // 明文 HTTP 下摘要只能防传输损坏，防不了中间人（见 Downloads.toCache 注释）
                     sha256 = info.apkSha256,
-                ) { progress -> _state.update { it.copy(progress = progress) } }
-            }.onSuccess { file ->
+                    expectedBytes = info.size,
+                ) { progress, _, _ -> _state.update { it.copy(progress = progress) } }
                 _state.update { it.copy(downloading = false) }
                 if (!Downloads.installApk(context, file)) {
-                    _state.update { it.copy(message = context.getString(R.string.update_need_install_permission)) }
+                    // 用户去开了「安装未知应用」授权；返回后 onHostResumed 自动续装
+                    pendingInstall = file
+                    _state.update {
+                        it.copy(dialogError = context.getString(R.string.update_need_install_permission))
+                    }
                 }
-            }.onFailure { error ->
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _state.update {
                     it.copy(
                         downloading = false,
-                        message = error.message?.takeIf { m -> m.isNotBlank() }
-                            ?: context.getString(R.string.update_download_failed),
+                        dialogError = userFacingMessage(context, e, R.string.update_download_failed),
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * 宿主 ON_RESUME：用户从「安装未知应用」设置页授权返回时自动继续安装，
+     * 不需要再手动点一次「立即更新」。
+     */
+    fun onHostResumed() {
+        val file = pendingInstall ?: return
+        val context = getApplication<Application>()
+        if (context.packageManager.canRequestPackageInstalls()) {
+            pendingInstall = null
+            Downloads.installApk(context, file)
+            _state.update { it.copy(dialogError = null) }
         }
     }
 
@@ -122,7 +165,8 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     fun dismiss() {
         if (_state.value.downloading) return
         if (_state.value.available?.force == true) return
-        _state.update { it.copy(available = null) }
+        pendingInstall = null
+        _state.update { it.copy(available = null, dialogError = null) }
     }
 
     fun consumeMessage() = _state.update { it.copy(message = null) }
@@ -142,6 +186,16 @@ fun UpdateDialog(viewModel: UpdateViewModel) {
     val info = state.available ?: return
     val force = info.force
     val dismissable = !force && !state.downloading
+
+    // 从授权设置页返回时自动续装（见 UpdateViewModel.onHostResumed）
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.onHostResumed()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     AlertDialog(
         onDismissRequest = { viewModel.dismiss() },
@@ -175,15 +229,34 @@ fun UpdateDialog(viewModel: UpdateViewModel) {
                 }
                 if (state.downloading) {
                     Spacer(Modifier.height(16.dp))
-                    LinearProgressIndicator(
-                        progress = { state.progress },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(6.dp))
+                    if (state.progress >= 0f) {
+                        LinearProgressIndicator(
+                            progress = { state.progress },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            stringResource(R.string.update_downloading, (state.progress * 100).toInt()),
+                            fontSize = 12.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        // 服务端没给总大小：显示不确定进度，不假装知道百分比
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            stringResource(R.string.update_downloading_unknown),
+                            fontSize = 12.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else if (state.dialogError != null) {
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        stringResource(R.string.update_downloading, (state.progress * 100).toInt()),
-                        fontSize = 12.5.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        state.dialogError!!,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp,
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
             }

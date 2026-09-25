@@ -27,14 +27,19 @@ class CloudBankRepository(private val context: Context) {
      * 下载题库 CSV 到缓存目录，返回可交给导入流程读取的 URI。
      *
      * [CloudBankDto.sha256] 由服务端下发，`Downloads.toCache` 会校验；对不上就抛错，
-     * 绝不把被篡改或截断的文件送进导入流程。
+     * 绝不把被篡改或截断的文件送进导入流程。进度回调签名见 [Downloads.toCache]，
+     * 总大小未知时 progress 为 [Downloads.PROGRESS_UNKNOWN]。
      */
-    suspend fun download(bank: CloudBankDto, onProgress: ((Float) -> Unit)? = null): Uri {
+    suspend fun download(
+        bank: CloudBankDto,
+        onProgress: ((progress: Float, bytesRead: Long, totalBytes: Long) -> Unit)? = null,
+    ): Uri {
         val file = Downloads.toCache(
             context = context,
             url = bank.url,
             fileName = "${bank.id}.csv",
             sha256 = bank.sha256,
+            expectedBytes = bank.sizeBytes,
             onProgress = onProgress,
         )
         // 缓存目录已在 res/xml/file_paths.xml 里暴露给 FileProvider

@@ -15,7 +15,7 @@ data class AppVersionDto(
     val apkSha256: String = "",
 )
 
-/** 一个云端题库。`sha256` 用于下载后校验完整性（明文 HTTP 下防篡改）。 */
+/** 一个云端题库。`sha256` 用于下载后校验完整性（能查出传输损坏/截断；防不了同信道的中间人，见 Downloads.toCache）。 */
 @Serializable
 data class CloudBankDto(
     val id: String,
